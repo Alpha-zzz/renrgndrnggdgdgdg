@@ -6970,7 +6970,7 @@ function Library:CreateWindow(WindowInfo)
                 CanvasSize = UDim2.fromScale(0, 0),
                 ScrollBarImageTransparency = 0,
                 ScrollBarImageColor3 = "FontColor",
-                ScrollBarThickness = 12,
+                ScrollBarThickness = 6,
                 Size = UDim2.new(0.5, -3, 1, 0),
                 Parent = TabContainer,
             })
@@ -7006,7 +7006,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.fromScale(1, 0),
                 ScrollBarImageTransparency = 0,
                 ScrollBarImageColor3 = "FontColor",
-                ScrollBarThickness = 12,
+                ScrollBarThickness = 6,
                 Size = UDim2.new(0.5, -3, 1, 0),
                 Parent = TabContainer,
             })
@@ -8507,10 +8507,10 @@ function Library:CreateWindow(WindowInfo)
                 RunService:UnbindFromRenderStep(ShowCursorBinding)
             end)
             RunService:BindToRenderStep(ShowCursorBinding, Enum.RenderPriority.Last.Value, function()
-                UserInputService.MouseIconEnabled = not Library.ShowCustomCursor
+                UserInputService.MouseIconEnabled = true -- MONOLITH: always show system cursor
 
                 Cursor.Position = UDim2.fromOffset(Mouse.X, Mouse.Y)
-                Cursor.Visible = Library.ShowCustomCursor
+                Cursor.Visible = false -- MONOLITH: always hide custom cursor
 
                 if not (Library.Toggled and ScreenGui and ScreenGui.Parent) then
                     UserInputService.MouseIconEnabled = OldMouseIconEnabled
