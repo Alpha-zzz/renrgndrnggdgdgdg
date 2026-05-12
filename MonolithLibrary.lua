@@ -6969,8 +6969,8 @@ function Library:CreateWindow(WindowInfo)
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
                 ScrollBarImageTransparency = 0,
-                ScrollBarImageColor3 = "AccentColor",
-                ScrollBarThickness = 8,
+                ScrollBarImageColor3 = "FontColor",
+                ScrollBarThickness = 12,
                 Size = UDim2.new(0.5, -3, 1, 0),
                 Parent = TabContainer,
             })
@@ -7005,8 +7005,8 @@ function Library:CreateWindow(WindowInfo)
                 CanvasSize = UDim2.fromScale(0, 0),
                 Position = UDim2.fromScale(1, 0),
                 ScrollBarImageTransparency = 0,
-                ScrollBarImageColor3 = "AccentColor",
-                ScrollBarThickness = 8,
+                ScrollBarImageColor3 = "FontColor",
+                ScrollBarThickness = 12,
                 Size = UDim2.new(0.5, -3, 1, 0),
                 Parent = TabContainer,
             })
