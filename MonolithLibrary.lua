@@ -198,7 +198,7 @@ local Library = {
 
     Corners = {},
 
-    ToggleKeybind = Enum.KeyCode.RightControl,
+    ToggleKeybind = Enum.KeyCode.RightShift,
     TweenInfo = TweenInfo.new(0.12, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
     NotifyTweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 
@@ -327,7 +327,7 @@ local Templates = {
         NotifySide = "Right",
         ShowCustomCursor = true,
         Font = Enum.Font.Gotham,
-        ToggleKeybind = Enum.KeyCode.RightControl,
+        ToggleKeybind = Enum.KeyCode.RightShift,
         
         ShowMobileButtons = true,
         MobileButtonsSide = "Left",
@@ -6619,18 +6619,43 @@ function Library:CreateWindow(WindowInfo)
             })
         end
 
-        if MoveIcon then
-            New("ImageLabel", {
-                AnchorPoint = Vector2.new(1, 0.5),
-                Image = MoveIcon.Url,
-                ImageColor3 = "OutlineColor",
-                ImageRectOffset = MoveIcon.ImageRectOffset,
-                ImageRectSize = MoveIcon.ImageRectSize,
-                Position = UDim2.new(1, -10, 0.5, 0),
-                Size = UDim2.fromOffset(28, 28),
+        do
+            -- ◈ MONOLITH: X Close Button (replaces MoveIcon)
+            local CloseBtn = New("TextButton", {
+                AnchorPoint  = Vector2.new(1, 0.5),
+                BackgroundColor3 = "MainColor",
+                BackgroundTransparency = 0.4,
+                Position     = UDim2.new(1, -10, 0.5, 0),
+                Size         = UDim2.fromOffset(28, 28),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                Parent = TopBar,
+                Text         = "✕",
+                TextColor3   = "FontColor",
+                TextSize     = 15,
+                TextTransparency = 0.2,
+                ZIndex       = 10,
+                Parent       = TopBar,
             })
+            New("UICorner", {
+                CornerRadius = UDim.new(0, 6),
+                Parent = CloseBtn,
+            })
+            -- ホバーで赤みがかったグレーに変化
+            CloseBtn.MouseEnter:Connect(function()
+                TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
+                    BackgroundTransparency = 0,
+                    TextTransparency = 0,
+                }):Play()
+            end)
+            CloseBtn.MouseLeave:Connect(function()
+                TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
+                    BackgroundTransparency = 0.4,
+                    TextTransparency = 0.2,
+                }):Play()
+            end)
+            -- クリックでGUIを閉じる (Toggle off)
+            CloseBtn.MouseButton1Click:Connect(function()
+                Library:Toggle(false)
+            end)
         end
 
         --// Bottom Bar \\--
