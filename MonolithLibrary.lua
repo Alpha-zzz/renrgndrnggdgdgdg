@@ -1,10 +1,10 @@
 --[[
-  ╔══════════════════════════════════════════════════╗
-  ║  M O N O L I T H   G U I   L I B R A R Y        ║
-  ║  Heavy Noir Edition  |  based on Obsidian        ║
-  ║  Jet Black x Platinum  |  880x600  |  6px        ║
-  ║  Alpha-zzz  |  2026                              ║
-  ╚══════════════════════════════════════════════════╝
+  ╔═══════════════════════════════════════════════════════╗
+  ║   M O N O L I T H   G U I   L I B R A R Y           ║
+  ║   Cool Noir Edition  |  Rayfield-inspired             ║
+  ║   Deep Navy x Cool Silver  |  900x580  |  7px         ║
+  ║   Alpha-zzz  ·  2026                                 ║
+  ╚═══════════════════════════════════════════════════════╝
 --]]
 
 local cloneref = (cloneref or clonereference or function(instance: any)
@@ -198,8 +198,8 @@ local Library = {
     Corners = {},
 
     ToggleKeybind = Enum.KeyCode.RightControl,
-    TweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
-    NotifyTweenInfo = TweenInfo.new(0.32, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+    TweenInfo = TweenInfo.new(0.14, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+    NotifyTweenInfo = TweenInfo.new(0.28, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
 
     Toggled = false,
     Unloaded = false,
@@ -220,23 +220,23 @@ local Library = {
     Signals = {},
     UnloadSignals = {},
 
-    OriginalMinSize = Vector2.new(620, 420),
-    MinSize = Vector2.new(620, 420),
+    OriginalMinSize = Vector2.new(620, 400),
+    MinSize = Vector2.new(620, 400),
     DPIScale = 1,
-    CornerRadius = 6,
+    CornerRadius = 7,
     CornerRadiusDropdown = false, -- Temporary
 
     IsLightTheme = false,
     Scheme = {
-        BackgroundColor = Color3.fromRGB(4, 4, 4),
-        MainColor = Color3.fromRGB(13, 13, 13),
-        AccentColor = Color3.fromRGB(228, 228, 228),
-        OutlineColor = Color3.fromRGB(38, 38, 38),
-        FontColor = Color3.fromRGB(248, 248, 248),
+        BackgroundColor = Color3.fromRGB(14, 14, 18),
+        MainColor = Color3.fromRGB(24, 24, 30),
+        AccentColor = Color3.fromRGB(210, 215, 225),
+        OutlineColor = Color3.fromRGB(42, 44, 54),
+        FontColor = Color3.fromRGB(235, 238, 248),
         Font = Font.fromEnum(Enum.Font.Code),
 
-        RedColor = Color3.fromRGB(210, 210, 210),
-        DestructiveColor = Color3.fromRGB(170, 170, 170),
+        RedColor = Color3.fromRGB(200, 205, 215),
+        DestructiveColor = Color3.fromRGB(160, 165, 175),
         DarkColor = Color3.new(0, 0, 0),
         WhiteColor = Color3.new(1, 1, 1),
     },
@@ -254,7 +254,7 @@ if RunService:IsStudio() then
         Library.OriginalMinSize = Vector2.new(480, 240)
     else
         Library.IsMobile = false
-        Library.OriginalMinSize = Vector2.new(620, 420)
+        Library.OriginalMinSize = Vector2.new(620, 400)
     end
 else
     pcall(function()
@@ -315,14 +315,14 @@ local Templates = {
         Title = "No Title",
         Footer = "No Footer",
         Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.fromOffset(880, 600),
+        Size = UDim2.fromOffset(900, 580),
         IconSize = UDim2.fromOffset(30, 30),
         AutoShow = true,
         Center = true,
         Resizable = true,
         SearchbarSize = UDim2.fromScale(1, 1),
         GlobalSearch = false,
-        CornerRadius = 6,
+        CornerRadius = 7,
         NotifySide = "Right",
         ShowCustomCursor = true,
         Font = Enum.Font.Code,
@@ -337,11 +337,11 @@ local Templates = {
         EnableCompacting = true,
         DisableCompactingSnap = false,
         SidebarCompacted = false,
-        MinContainerWidth = 320,
+        MinContainerWidth = 315,
 
         --// Snapping \\--
-        MinSidebarWidth = 164,
-        SidebarCompactWidth = 56,
+        MinSidebarWidth = 158,
+        SidebarCompactWidth = 54,
         SidebarCollapseThreshold = 0.5,
 
         --// Dragging \\--
