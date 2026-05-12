@@ -6627,7 +6627,7 @@ function Library:CreateWindow(WindowInfo)
                 Position     = UDim2.new(1, -10, 0.5, 0),
                 Size         = UDim2.fromOffset(28, 28),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                Text         = "✕",
+                Text         = "X",
                 TextColor3   = "FontColor",
                 TextSize     = 15,
                 TextTransparency = 0.2,
