@@ -1,9 +1,9 @@
 --[[
-  ███╗   ███╗ ██████╁E███╗   ██╁E██████╁E██╁E    ██╗████████╗██╁E ██╁E
-  ████╁E████║██╔═══██╗████╁E ██║██╔═══██╗██╁E    ██║╚══██╔══╝██╁E ██╁E
-  ██╔████╔██║██║   ██║██╔██╁E██║██║   ██║██║     ██╁E  ██╁E  ███████║
-  ██║╚██╔╝██║██║   ██║██║╚██╗██║██║   ██║██║     ██╁E  ██╁E  ██╔══██║
-  ██╁E╚═╁E██║╚██████╔╝██╁E╚████║╚██████╔╝███████╗██║   ██╁E  ██╁E ██╁E
+  ███╗   ███╗ ██████╗ ███╗   ██╗ ██████╗ ██╗     ██╗████████╗██╗  ██╗
+  ████╗ ████║██╔═══██╗████╗  ██║██╔═══██╗██║     ██║╚══██╔══╝██║  ██║
+  ██╔████╔██║██║   ██║██╔██╗ ██║██║   ██║██║     ██║   ██║   ███████║
+  ██║╚██╔╝██║██║   ██║██║╚██╗██║██║   ██║██║     ██║   ██║   ██╔══██║
+  ██║ ╚═╝ ██║╚██████╔╝██║ ╚████║╚██████╔╝███████╗██║   ██║   ██║  ██║
   MONOLITH GUI Library  |  Monochrome Edition  |  based on Obsidian
   White · Gray · Black  |  Gotham Font  |  800x540  |  6px Corners
 --]]
@@ -211,7 +211,7 @@ local Library = {
     Options = Options,
 
     NotifySide = "Right",
-    ShowCustomCursor = true,
+    ShowCustomCursor = false,
     ForceCheckbox = false,
     ShowToggleFrameInKeybinds = true,
     NotifyOnError = false,
@@ -325,7 +325,7 @@ local Templates = {
         GlobalSearch = false,
         CornerRadius = 6,
         NotifySide = "Right",
-        ShowCustomCursor = true,
+        ShowCustomCursor = false,
         Font = Enum.Font.Gotham,
         ToggleKeybind = Enum.KeyCode.RightShift,
         
@@ -6620,7 +6620,6 @@ function Library:CreateWindow(WindowInfo)
         end
 
         do
-            -- ◈ MONOLITH: X Close Button (replaces MoveIcon)
             local CloseBtn = New("TextButton", {
                 AnchorPoint  = Vector2.new(1, 0.5),
                 BackgroundColor3 = "MainColor",
@@ -6628,31 +6627,24 @@ function Library:CreateWindow(WindowInfo)
                 Position     = UDim2.new(1, -10, 0.5, 0),
                 Size         = UDim2.fromOffset(28, 28),
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
-                Text         = "✕",
+                Text         = "\u2715",
                 TextColor3   = "FontColor",
                 TextSize     = 15,
                 TextTransparency = 0.2,
                 ZIndex       = 10,
                 Parent       = TopBar,
             })
-            New("UICorner", {
-                CornerRadius = UDim.new(0, 6),
-                Parent = CloseBtn,
-            })
-            -- ホバーで赤みがかったグレーに変化
+            New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = CloseBtn })
             CloseBtn.MouseEnter:Connect(function()
                 TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
-                    BackgroundTransparency = 0,
-                    TextTransparency = 0,
+                    BackgroundTransparency = 0, TextTransparency = 0
                 }):Play()
             end)
             CloseBtn.MouseLeave:Connect(function()
                 TweenService:Create(CloseBtn, TweenInfo.new(0.15), {
-                    BackgroundTransparency = 0.4,
-                    TextTransparency = 0.2,
+                    BackgroundTransparency = 0.4, TextTransparency = 0.2
                 }):Play()
             end)
-            -- クリックでGUIを閉じる (Toggle off)
             CloseBtn.MouseButton1Click:Connect(function()
                 Library:Toggle(false)
             end)
@@ -6661,7 +6653,7 @@ function Library:CreateWindow(WindowInfo)
         --// Bottom Bar \\--
         BottomBackground = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
-            BackgroundTransparency = 1, -- MONOLITH: hide footer bar
+            BackgroundTransparency = 1,
             BackgroundColor3 = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
             end,
@@ -6669,8 +6661,11 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(1, 0, 0, 20 + WindowInfo.CornerRadius),
             Parent = MainFrame
         })
-        -- Library:MakeLine footer line hidden (MONOLITH)
-        do local _hiddenLine = New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0,0), Parent = MainFrame }) end
+        Library:MakeLine(MainFrame, {
+            AnchorPoint = Vector2.new(0, 1),
+            Position = UDim2.new(0, 0, 1, -20),
+            Size = UDim2.new(1, 0, 0, 1),
+        })
 
         local BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
@@ -6693,7 +6688,7 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.fromScale(1, 1),
             Text = WindowInfo.Footer,
             TextSize = 14,
-            TextTransparency = 1, -- MONOLITH: hide footer text
+            TextTransparency = 1,
             Visible = false,
             Parent = BottomBar,
         })
@@ -6973,8 +6968,8 @@ function Library:CreateWindow(WindowInfo)
                 AutomaticCanvasSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
-                ScrollBarImageTransparency = 1,
-                ScrollBarThickness = 0,
+                ScrollBarImageTransparency = 0,
+                ScrollBarThickness = 4,
                 Size = UDim2.new(0.5, -3, 1, 0),
                 Parent = TabContainer,
             })
@@ -7008,8 +7003,8 @@ function Library:CreateWindow(WindowInfo)
                 BackgroundTransparency = 1,
                 CanvasSize = UDim2.fromScale(0, 0),
                 Position = UDim2.fromScale(1, 0),
-                ScrollBarImageTransparency = 1,
-                ScrollBarThickness = 0,
+                ScrollBarImageTransparency = 0,
+                ScrollBarThickness = 4,
                 Size = UDim2.new(0.5, -3, 1, 0),
                 Parent = TabContainer,
             })
