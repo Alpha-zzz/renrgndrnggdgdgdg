@@ -1,11 +1,10 @@
 --[[
-  ███╗   ███╗ ██████╗ ███╗   ██╗ ██████╗ ██╗     ██╗████████╗██╗  ██╗
-  ████╗ ████║██╔═══██╗████╗  ██║██╔═══██╗██║     ██║╚══██╔══╝██║  ██║
-  ██╔████╔██║██║   ██║██╔██╗ ██║██║   ██║██║     ██║   ██║   ███████║
-  ██║╚██╔╝██║██║   ██║██║╚██╗██║██║   ██║██║     ██║   ██║   ██╔══██║
-  ██║ ╚═╝ ██║╚██████╔╝██║ ╚████║╚██████╔╝███████╗██║   ██║   ██║  ██║
-  MONOLITH GUI Library  |  Monochrome Edition  |  based on Obsidian
-  White · Gray · Black  |  Gotham Font  |  800x540  |  6px Corners
+  +---------------------------------------------------------+
+  |  M O N O L I T H   G U I   L I B R A R Y              |
+  |  Monochrome Heavy Edition  |  based on Obsidian         |
+  |  Platinum · Obsidian · Void  |  GothamBold  |  8px      |
+  |  860x580  |  Sidebar 160px  |  by Alpha-zzz            |
+  +---------------------------------------------------------+
 --]]
 
 local cloneref = (cloneref or clonereference or function(instance: any)
@@ -199,8 +198,8 @@ local Library = {
     Corners = {},
 
     ToggleKeybind = Enum.KeyCode.RightControl,
-    TweenInfo = TweenInfo.new(0.12, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
-    NotifyTweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+    TweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out),
+    NotifyTweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
 
     Toggled = false,
     Unloaded = false,
@@ -221,23 +220,23 @@ local Library = {
     Signals = {},
     UnloadSignals = {},
 
-    OriginalMinSize = Vector2.new(560, 360),
-    MinSize = Vector2.new(560, 360),
+    OriginalMinSize = Vector2.new(600, 400),
+    MinSize = Vector2.new(600, 400),
     DPIScale = 1,
-    CornerRadius = 6,
+    CornerRadius = 8,
     CornerRadiusDropdown = false, -- Temporary
 
     IsLightTheme = false,
     Scheme = {
-        BackgroundColor = Color3.fromRGB(8, 8, 8),
-        MainColor = Color3.fromRGB(20, 20, 20),
-        AccentColor = Color3.fromRGB(185, 185, 185),
-        OutlineColor = Color3.fromRGB(42, 42, 42),
-        FontColor = Color3.fromRGB(220, 220, 220),
-        Font = Font.fromEnum(Enum.Font.Gotham),
+        BackgroundColor = Color3.fromRGB(5, 5, 5),
+        MainColor = Color3.fromRGB(14, 14, 14),
+        AccentColor = Color3.fromRGB(215, 215, 215),
+        OutlineColor = Color3.fromRGB(52, 52, 52),
+        FontColor = Color3.fromRGB(238, 238, 238),
+        Font = Font.fromEnum(Enum.Font.GothamBold),
 
-        RedColor = Color3.fromRGB(180, 180, 180),
-        DestructiveColor = Color3.fromRGB(150, 150, 150),
+        RedColor = Color3.fromRGB(200, 200, 200),
+        DestructiveColor = Color3.fromRGB(160, 160, 160),
         DarkColor = Color3.new(0, 0, 0),
         WhiteColor = Color3.new(1, 1, 1),
     },
@@ -255,7 +254,7 @@ if RunService:IsStudio() then
         Library.OriginalMinSize = Vector2.new(480, 240)
     else
         Library.IsMobile = false
-        Library.OriginalMinSize = Vector2.new(560, 360)
+        Library.OriginalMinSize = Vector2.new(600, 400)
     end
 else
     pcall(function()
@@ -316,17 +315,17 @@ local Templates = {
         Title = "No Title",
         Footer = "No Footer",
         Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.fromOffset(800, 540),
+        Size = UDim2.fromOffset(860, 580),
         IconSize = UDim2.fromOffset(30, 30),
         AutoShow = true,
         Center = true,
         Resizable = true,
         SearchbarSize = UDim2.fromScale(1, 1),
         GlobalSearch = false,
-        CornerRadius = 6,
+        CornerRadius = 8,
         NotifySide = "Right",
         ShowCustomCursor = true,
-        Font = Enum.Font.Gotham,
+        Font = Enum.Font.GothamBold,
         ToggleKeybind = Enum.KeyCode.RightControl,
         
         ShowMobileButtons = true,
@@ -338,11 +337,11 @@ local Templates = {
         EnableCompacting = true,
         DisableCompactingSnap = false,
         SidebarCompacted = false,
-        MinContainerWidth = 280,
+        MinContainerWidth = 310,
 
         --// Snapping \\--
-        MinSidebarWidth = 140,
-        SidebarCompactWidth = 52,
+        MinSidebarWidth = 160,
+        SidebarCompactWidth = 56,
         SidebarCollapseThreshold = 0.5,
 
         --// Dragging \\--
