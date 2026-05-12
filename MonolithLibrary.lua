@@ -6661,6 +6661,7 @@ function Library:CreateWindow(WindowInfo)
         --// Bottom Bar \\--
         BottomBackground = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
+            BackgroundTransparency = 1, -- MONOLITH: hide footer bar
             BackgroundColor3 = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 4)
             end,
@@ -6668,11 +6669,8 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.new(1, 0, 0, 20 + WindowInfo.CornerRadius),
             Parent = MainFrame
         })
-        Library:MakeLine(MainFrame, {
-            AnchorPoint = Vector2.new(0, 1),
-            Position = UDim2.new(0, 0, 1, -20),
-            Size = UDim2.new(1, 0, 0, 1),
-        })
+        -- Library:MakeLine footer line hidden (MONOLITH)
+        do local _hiddenLine = New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0,0), Parent = MainFrame }) end
 
         local BottomBar = New("Frame", {
             AnchorPoint = Vector2.new(0, 1),
@@ -6695,7 +6693,8 @@ function Library:CreateWindow(WindowInfo)
             Size = UDim2.fromScale(1, 1),
             Text = WindowInfo.Footer,
             TextSize = 14,
-            TextTransparency = 0.5,
+            TextTransparency = 1, -- MONOLITH: hide footer text
+            Visible = false,
             Parent = BottomBar,
         })
 
