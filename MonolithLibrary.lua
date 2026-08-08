@@ -6427,26 +6427,26 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
 
-        if WindowInfo.BackgroundImage then
-            BackgroundImage = New("ImageLabel", {
-                Image = WindowInfo.BackgroundImage,
-                Position = UDim2.fromScale(0, 0),
-                Size = UDim2.fromScale(1, 1),
-                ScaleType = Enum.ScaleType.Stretch,
-                ZIndex = 999,
-                BackgroundTransparency = 1,
-                ImageTransparency = 0.75,
-                Parent = MainFrame,
-            })
+        -- 背景は常に用意（後から画像リンクで差し替え可能）
+        BackgroundImage = New("ImageLabel", {
+            Image = WindowInfo.BackgroundImage or "",
+            Position = UDim2.fromScale(0, 0),
+            Size = UDim2.fromScale(1, 1),
+            ScaleType = Enum.ScaleType.Stretch,
+            ZIndex = 0,
+            BackgroundTransparency = 1,
+            ImageTransparency = typeof(WindowInfo.BackgroundTransparency) == "number" and WindowInfo.BackgroundTransparency or 0.5,
+            Visible = typeof(WindowInfo.BackgroundImage) == "string" and WindowInfo.BackgroundImage ~= "",
+            Parent = MainFrame,
+        })
 
-            table.insert(
-                Library.Corners,
-                New("UICorner", {
-                    CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
-                    Parent = BackgroundImage,
-                })
-            )
-        end
+        table.insert(
+            Library.Corners,
+            New("UICorner", {
+                CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                Parent = BackgroundImage,
+            })
+        )
 
         if WindowInfo.Center then
             MainFrame.Position = UDim2.new(0.5, -MainFrame.Size.X.Offset / 2, 0.5, -MainFrame.Size.Y.Offset / 2)
@@ -6767,13 +6767,18 @@ function Library:CreateWindow(WindowInfo)
         WindowInfo.Title = title
     end
 
-    if WindowInfo.BackgroundImage then
-        function Window:SetBackgroundImage(Image: string)
-            assert(typeof(Image) == "string", "Expected string for Image got: " .. typeof(Image))
-    
-            BackgroundImage.Image = Image
-            WindowInfo.BackgroundImage = Image
-        end
+    function Window:SetBackgroundImage(Image: string)
+        assert(typeof(Image) == "string", "Expected string for Image got: " .. typeof(Image))
+
+        BackgroundImage.Image = Image
+        BackgroundImage.Visible = Image ~= ""
+        WindowInfo.BackgroundImage = Image
+    end
+
+    function Window:SetBackgroundTransparency(Transparency: number)
+        assert(typeof(Transparency) == "number", "Expected number for Transparency got: " .. typeof(Transparency))
+        BackgroundImage.ImageTransparency = math.clamp(Transparency, 0, 1)
+        WindowInfo.BackgroundTransparency = BackgroundImage.ImageTransparency
     end
 
     function Window:SetFooter(footer: string)
