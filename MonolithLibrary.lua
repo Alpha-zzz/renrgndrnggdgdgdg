@@ -6476,13 +6476,25 @@ function Library:CreateWindow(WindowInfo)
 
         if WindowInfo.Icon then
             local Icon = Library:GetCustomIcon(WindowInfo.Icon)
-            WindowIcon = New("ImageLabel", {
-                Image = Icon.Url,
-                ImageRectOffset = Icon.ImageRectOffset,
-                ImageRectSize = Icon.ImageRectSize,
-                Size = WindowInfo.IconSize,
-                Parent = TitleHolder,
-            })
+            if Icon and Icon.Url then
+                WindowIcon = New("ImageLabel", {
+                    Image = Icon.Url,
+                    ImageRectOffset = Icon.ImageRectOffset,
+                    ImageRectSize = Icon.ImageRectSize,
+                    Size = WindowInfo.IconSize,
+                    BackgroundTransparency = 1,
+                    Parent = TitleHolder,
+                })
+            else
+                WindowIcon = New("TextLabel", {
+                    BackgroundTransparency = 1,
+                    Size = WindowInfo.IconSize,
+                    Text = WindowInfo.Title:sub(1, 1),
+                    TextScaled = true,
+                    Visible = true,
+                    Parent = TitleHolder,
+                })
+            end
         else
             WindowIcon = New("TextLabel", {
                 BackgroundTransparency = 1,
@@ -6770,6 +6782,9 @@ function Library:CreateWindow(WindowInfo)
     function Window:SetBackgroundImage(Image: string)
         assert(typeof(Image) == "string", "Expected string for Image got: " .. typeof(Image))
 
+        if not BackgroundImage then
+            return
+        end
         BackgroundImage.Image = Image
         BackgroundImage.Visible = Image ~= ""
         WindowInfo.BackgroundImage = Image
@@ -6777,6 +6792,9 @@ function Library:CreateWindow(WindowInfo)
 
     function Window:SetBackgroundTransparency(Transparency: number)
         assert(typeof(Transparency) == "number", "Expected number for Transparency got: " .. typeof(Transparency))
+        if not BackgroundImage then
+            return
+        end
         BackgroundImage.ImageTransparency = math.clamp(Transparency, 0, 1)
         WindowInfo.BackgroundTransparency = BackgroundImage.ImageTransparency
     end
