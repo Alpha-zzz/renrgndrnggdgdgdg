@@ -1082,7 +1082,8 @@ function Library:GetCustomIcon(IconName: string): any
     end
 
     if tonumber(IconName) then
-        IconName = string.format("rbxassetid://%s", tostring(IconName))
+        -- Decal等は rbxassetid だと空になることがあるので rbxthumb を使う
+        IconName = string.format("rbxthumb://type=Asset&id=%s&w=150&h=150", tostring(IconName))
     end
 
     local CustomIcon = IsValidCustomIcon(IconName)
@@ -6429,13 +6430,14 @@ function Library:CreateWindow(WindowInfo)
 
         -- 背景は常に用意（後から画像リンクで差し替え可能）
         BackgroundImage = New("ImageLabel", {
+            Name = "MonolithBackgroundImage",
             Image = WindowInfo.BackgroundImage or "",
             Position = UDim2.fromScale(0, 0),
             Size = UDim2.fromScale(1, 1),
-            ScaleType = Enum.ScaleType.Stretch,
-            ZIndex = 0,
+            ScaleType = Enum.ScaleType.Crop,
+            ZIndex = 1,
             BackgroundTransparency = 1,
-            ImageTransparency = typeof(WindowInfo.BackgroundTransparency) == "number" and WindowInfo.BackgroundTransparency or 0.5,
+            ImageTransparency = typeof(WindowInfo.BackgroundTransparency) == "number" and WindowInfo.BackgroundTransparency or 0.35,
             Visible = typeof(WindowInfo.BackgroundImage) == "string" and WindowInfo.BackgroundImage ~= "",
             Parent = MainFrame,
         })
