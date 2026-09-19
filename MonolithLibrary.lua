@@ -6244,6 +6244,7 @@ function Library:Notify(...)
             Category    = CategoryName,
             Time        = os.date("%H:%M"),
             Color       = TypeColor or Library.Scheme.AccentColor,
+            BeforeData  = (typeof(Info) == "table" and Info.BeforeData) or nil,
         }
 
         -- グローバル履歴（全体）に追加
@@ -6379,6 +6380,82 @@ function Library:Notify(...)
                 end)
             end
         end)
+
+        if HistoryEntry.BeforeData then
+            local BeforeBtn = New("TextButton", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 0, 0, 0),
+                Size = UDim2.fromOffset(45, 14),
+                Text = "Before",
+                TextColor3 = Library.Scheme.AccentColor or Color3.fromRGB(100, 160, 255),
+                TextSize = 11,
+                Font = Enum.Font.Gotham,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = BottomBar
+            })
+            local SaveBtn = New("TextButton", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 55, 0, 0),
+                Size = UDim2.fromOffset(45, 14),
+                Text = "Save",
+                TextColor3 = Library.Scheme.FontColor or Color3.fromRGB(255, 255, 255),
+                TextTransparency = 0.5,
+                TextSize = 11,
+                Font = Enum.Font.Gotham,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = BottomBar
+            })
+
+            BeforeBtn.MouseButton1Click:Connect(function()
+                local bd = HistoryEntry.BeforeData
+                if getgenv()._Monolith_BeforeDiorama then
+                    pcall(function() getgenv()._Monolith_BeforeDiorama:Destroy() end)
+                end
+                local folder = Instance.new("Folder")
+                folder.Name = "Monolith_BeforeDiorama"
+                folder.Parent = workspace
+                getgenv()._Monolith_BeforeDiorama = folder
+
+                local pCFrame = bd.PlayerCFrame
+                local cf = CFrame.new(pCFrame.X, pCFrame.Y, pCFrame.Z, pCFrame.R00, pCFrame.R01, pCFrame.R02, pCFrame.R10, pCFrame.R11, pCFrame.R12, pCFrame.R20, pCFrame.R21, pCFrame.R22)
+
+                task.spawn(function()
+                    local dummy = game.Players:CreateHumanoidModelFromUserId(bd.UserId)
+                    dummy.Parent = folder
+                    dummy:SetPrimaryPartCFrame(cf)
+                    for _, v in ipairs(dummy:GetDescendants()) do
+                        if v:IsA("BasePart") then v.Anchored = true v.CanCollide = false end
+                    end
+                end)
+
+                local bhPos = bd.BlackHolePos
+                local bh = Instance.new("Part")
+                bh.Shape = Enum.PartType.Ball
+                bh.Size = Vector3.new(3,3,3)
+                bh.Color = Color3.fromRGB(0,0,0)
+                bh.Material = Enum.Material.Neon
+                bh.Anchored = true
+                bh.CanCollide = false
+                bh.Position = Vector3.new(bhPos.X, bhPos.Y, bhPos.Z)
+                bh.Parent = folder
+
+                Library:Notify({Title="Before", Description="Spawned Diorama for "..bd.PlayerName, Time=3})
+            end)
+
+            SaveBtn.MouseButton1Click:Connect(function()
+                if writefile then
+                    local bd = HistoryEntry.BeforeData
+                    local json = game:GetService("HttpService"):JSONEncode(bd)
+                    local fname = "Monolith_KickData_" .. bd.PlayerName .. "_" .. tostring(math.floor(tick())) .. ".json"
+                    writefile(fname, json)
+                    SaveBtn.Text = "Saved!"
+                    task.delay(1.5, function() SaveBtn.Text = "Save" end)
+                    Library:Notify({Title="Saved", Description="Saved to "..fname, Time=3})
+                else
+                    Library:Notify({Title="Error", Description="writefile not supported", Time=3})
+                end
+            end)
+        end
 
         -- 新しく追加した通知を一番上に、既存のものは順番を維持して下に押し出す
         for _, Child in Container:GetChildren() do
