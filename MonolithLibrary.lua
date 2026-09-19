@@ -6374,12 +6374,10 @@ function Library:Notify(...)
             end
         end)
 
-        -- 新しく追加した通知を常に一番上に (LayoutOrder で順序制御)
-        local Order = 1
+        -- 新しく追加した通知を一番上に、既存のものは順番を維持して下に押し出す
         for _, Child in Container:GetChildren() do
-            if Child:IsA("Frame") then
-                Child.LayoutOrder = Order
-                Order += 1
+            if Child:IsA("Frame") and Child ~= HistoryFrame then
+                Child.LayoutOrder = Child.LayoutOrder + 1
             end
         end
         HistoryFrame.LayoutOrder = 0
