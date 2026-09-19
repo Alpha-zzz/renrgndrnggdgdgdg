@@ -6265,8 +6265,8 @@ function Library:Notify(...)
         end
     end
 
-    -- Update Badge
-    if not Library.NotificationHistoryOpen and Library.NotificationBadge then
+    -- Update Badge (Only for categorized notifications that go to history)
+    if CategoryName and not Library.NotificationHistoryOpen and Library.NotificationBadge then
         Library.NotificationUnreadCount += 1
         Library.NotificationBadgeLabel.Text = tostring(Library.NotificationUnreadCount)
         Library.NotificationBadge.Visible = true
