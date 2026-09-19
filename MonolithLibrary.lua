@@ -6232,19 +6232,23 @@ function Library:Notify(...)
 
     -- Add to Notification History
     local CategoryName = (typeof(Info) == "table" and Info.Category) or nil
-    local HistoryEntry = {
-        Title       = Data.Title or "Notification",
-        Description = Data.Description,
-        Type        = Data.Type,
-        Category    = CategoryName,
-        Time        = os.date("%H:%M"),
-        Color       = TypeColor or Library.Scheme.AccentColor,
-    }
+    local HistoryEntry = nil
+    
+    if CategoryName then
+        HistoryEntry = {
+            Title       = Data.Title or "Notification",
+            Description = Data.Description,
+            Type        = Data.Type,
+            Category    = CategoryName,
+            Time        = os.date("%H:%M"),
+            Color       = TypeColor or Library.Scheme.AccentColor,
+        }
 
-    -- グローバル履歴（全体）に追加
-    table.insert(Library.NotificationHistory, 1, HistoryEntry)
-    if #Library.NotificationHistory > Library.NotificationHistoryLimit then
-        table.remove(Library.NotificationHistory, #Library.NotificationHistory)
+        -- グローバル履歴（全体）に追加
+        table.insert(Library.NotificationHistory, 1, HistoryEntry)
+        if #Library.NotificationHistory > Library.NotificationHistoryLimit then
+            table.remove(Library.NotificationHistory, #Library.NotificationHistory)
+        end
     end
 
     -- カテゴリー別履歴に追加
@@ -6276,7 +6280,7 @@ function Library:Notify(...)
     end
 
     -- Build History UI element if container exists
-    if Library.NotificationHistoryContainer then
+    if Library.NotificationHistoryContainer and CategoryName and HistoryEntry then
         local Container = Library.NotificationHistoryContainer
 
         local HistoryFrame = New("Frame", {
