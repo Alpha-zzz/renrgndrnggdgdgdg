@@ -9288,6 +9288,13 @@ function Library:CreateWindow(WindowInfo)
             Library:_SwitchHistoryTab("All")
         end)
 
+        -- すでに登録済みのカテゴリーがあればタブボタンを生成
+        for CatName, CatData in pairs(Library.NotificationCategories) do
+            if not CatData.TabButton then
+                Library:_AddCategoryTab(CatName)
+            end
+        end
+
         -- Add Search Box for Notification History at the top
         local HistorySearchContainer = New("Frame", {
             BackgroundTransparency = 1,
