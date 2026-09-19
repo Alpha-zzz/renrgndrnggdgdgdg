@@ -7096,18 +7096,13 @@ function Library:CreateWindow(WindowInfo)
             Library.NotificationBadgeLabel = BadgeLabel
 
             BellButton.MouseButton1Click:Connect(function()
-                Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
-                if Library.NotificationHistoryFrame then
-                    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
-                    if Library.NotificationHistoryOpen then
-                        Library.NotificationUnreadCount = 0
-                        Badge.Visible = false
-                        
-                        -- Focus search if history opened
-                        if Library.NotificationHistorySearchBox then
-                            Library.NotificationHistorySearchBox:CaptureFocus()
-                        end
-                    end
+                if Library.ToggleNotificationHistory then
+                    Library:ToggleNotificationHistory()
+                end
+                
+                -- Focus search if history opened
+                if Library.NotificationHistoryOpen and Library.NotificationHistorySearchBox then
+                    Library.NotificationHistorySearchBox:CaptureFocus()
                 end
             end)
         end
@@ -8981,6 +8976,44 @@ function Library:CreateWindow(WindowInfo)
         return Dialog
     end
 
+    function Library:ToggleNotificationHistory(State)
+        if typeof(State) == "boolean" then
+            Library.NotificationHistoryOpen = State
+        else
+            Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
+        end
+
+        if Library.NotificationHistoryFrame then
+            local Frame = Library.NotificationHistoryFrame
+            local ScaleObj = Frame:FindFirstChildOfClass("UIScale")
+            
+            if Library.NotificationHistoryOpen then
+                Frame.Visible = true
+                Library.NotificationUnreadCount = 0
+                if Library.NotificationBadge then
+                    Library.NotificationBadge.Visible = false
+                end
+                
+                if ScaleObj then
+                    ScaleObj.Scale = 0.8
+                    TweenService:Create(ScaleObj, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+                end
+            else
+                if ScaleObj then
+                    local tween = TweenService:Create(ScaleObj, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.8})
+                    tween:Play()
+                    tween.Completed:Once(function()
+                        if not Library.NotificationHistoryOpen then
+                            Frame.Visible = false
+                        end
+                    end)
+                else
+                    Frame.Visible = false
+                end
+            end
+        end
+    end
+
     function Window:Toggle(Value: boolean?)
         if Library.ActiveLoading then
             if Value == true then
@@ -8999,6 +9032,11 @@ function Library:CreateWindow(WindowInfo)
         end
 
         MainFrame.Visible = Library.Toggled
+
+        if not Library.Toggled then
+            -- GUIを閉じた時は通知履歴も閉じる
+            Library:ToggleNotificationHistory(false)
+        end
 
         if WindowInfo.UnlockMouseWhileOpen then
             ModalElement.Modal = Library.Toggled
@@ -9209,16 +9247,12 @@ function Library:CreateWindow(WindowInfo)
         if not Focused and Input.KeyCode == Library.NotificationHistoryKeybind then
             if Library.NotificationBell and Library.NotificationBell.Visible then
                 -- Simulate clicking the bell button to toggle history
-                Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
-                if Library.NotificationHistoryFrame then
-                    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
-                    if Library.NotificationHistoryOpen then
-                        Library.NotificationUnreadCount = 0
-                        Library.NotificationBadge.Visible = false
-                        if Library.NotificationHistorySearchBox then
-                            Library.NotificationHistorySearchBox:CaptureFocus()
-                        end
-                    end
+                if Library.ToggleNotificationHistory then
+                    Library:ToggleNotificationHistory()
+                end
+                
+                if Library.NotificationHistoryOpen and Library.NotificationHistorySearchBox then
+                    Library.NotificationHistorySearchBox:CaptureFocus()
                 end
             end
         end
