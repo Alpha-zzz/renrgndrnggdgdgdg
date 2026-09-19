@@ -6152,16 +6152,35 @@ function Library:Notify(...)
 
     -- Build History UI element if container exists
     if Library.NotificationHistoryContainer then
-        local HistoryFrame = New("Frame", {
+        local HistoryFrame = New("TextButton", {
             BackgroundColor3 = "MainColor",
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
+            Text = "",
+            AutoButtonColor = false,
             Parent = Library.NotificationHistoryContainer,
         })
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
         New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
         New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
         New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
+
+        HistoryFrame.MouseEnter:Connect(function()
+            TweenService:Create(HistoryFrame, TweenInfo.new(0.15), {
+                BackgroundColor3 = Library:GetBetterColor(Library.Scheme.MainColor, 10)
+            }):Play()
+        end)
+        HistoryFrame.MouseLeave:Connect(function()
+            TweenService:Create(HistoryFrame, TweenInfo.new(0.15), {
+                BackgroundColor3 = Library.Scheme.MainColor
+            }):Play()
+        end)
+        HistoryFrame.MouseButton1Click:Connect(function()
+            if setclipboard then
+                local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
+                setclipboard(copyText)
+            end
+        end)
 
         local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
         
@@ -9031,10 +9050,44 @@ function Library:CreateWindow(WindowInfo)
 
     --// Notification History Menu \\--
     do
-        local Frame, Container = Library:AddDraggableMenu("Notification History")
-        Frame.Visible = false
-        Frame.Size = UDim2.fromOffset(300, 400)
-        Frame.Position = UDim2.new(1, -310, 0, 55) -- Default position top right
+        local Frame = New("Frame", {
+            BackgroundColor3 = "BackgroundColor",
+            Position = UDim2.new(1, -310, 0, 55),
+            Size = UDim2.fromOffset(300, 400),
+            Visible = false,
+            ZIndex = 10,
+            Parent = Library.Floats or ScreenGui,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Frame }))
+        table.insert(Library.Scales, New("UIScale", { Parent = Frame }))
+        Library:AddOutline(Frame)
+
+        Library:MakeLine(Frame, {
+            Position = UDim2.fromOffset(0, 34),
+            Size = UDim2.new(1, 0, 0, 1),
+        })
+
+        local TitleLabel = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 34),
+            Text = "Notification History",
+            TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = Frame,
+        })
+        New("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = TitleLabel })
+
+        local Container = New("ScrollingFrame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 35),
+            Size = UDim2.new(1, 0, 1, -35),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 2,
+            Parent = Frame,
+        })
+        New("UIListLayout", { Padding = UDim.new(0, 7), Parent = Container })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 7), Parent = Container })
         
         Library.NotificationHistoryFrame = Frame
         Library.NotificationHistoryContainer = Container
