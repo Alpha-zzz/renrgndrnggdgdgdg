@@ -9128,6 +9128,18 @@ function Library:CreateWindow(WindowInfo)
         })
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = ClearBtn }))
         New("UIStroke", { Color = "OutlineColor", Parent = ClearBtn })
+        local Container = New("ScrollingFrame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 67), -- Moved down to accommodate search box
+            Size = UDim2.new(1, 0, 1, -67),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 2,
+            Parent = Frame,
+        })
+        New("UIListLayout", { Padding = UDim.new(0, 7), Parent = Container })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 0), Parent = Container })
+        
         ClearBtn.MouseButton1Click:Connect(function()
             -- 履歴UIをすべて削除
             for _, Child in Container:GetChildren() do
@@ -9143,19 +9155,6 @@ function Library:CreateWindow(WindowInfo)
             if Library.NotificationBadge then
                 Library.NotificationBadge.Visible = false
             end
-        end)
-
-        local Container = New("ScrollingFrame", {
-            BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 67), -- Moved down to accommodate search box
-            Size = UDim2.new(1, 0, 1, -67),
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarThickness = 2,
-            Parent = Frame,
-        })
-        New("UIListLayout", { Padding = UDim.new(0, 7), Parent = Container })
-        New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 0), Parent = Container })
         
         Library.NotificationHistoryFrame = Frame
         Library.NotificationHistoryContainer = Container
