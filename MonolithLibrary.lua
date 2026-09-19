@@ -1252,6 +1252,11 @@ local function New(ClassName: string, Properties: { [string]: any }): any
         end)
     end
 
+    -- Disable AutoLocalize for GuiObjects to prevent unwanted translations
+    pcall(function()
+        Instance.AutoLocalize = false
+    end)
+
     return Instance
 end
 
@@ -6153,7 +6158,7 @@ function Library:_SwitchHistoryTab(CategoryName)
     if TabBar then
         for _, Btn in TabBar:GetChildren() do
             if Btn:IsA("TextButton") then
-                if Btn.Text == CategoryName or (CategoryName == "All" and Btn.Text == "全体") then
+                if Btn.Text == CategoryName or (CategoryName == "All" and Btn.Text == "All") then
                     Btn.TextTransparency = 0
                     Btn.BackgroundColor3 = Library.Scheme.AccentColor or Color3.fromRGB(100, 160, 255)
                     Library.Registry[Btn] = { BackgroundColor3 = "AccentColor" }
@@ -9268,7 +9273,7 @@ function Library:CreateWindow(WindowInfo)
             BackgroundColor3 = "AccentColor",
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(0, 22),
-            Text = "全体",
+            Text = "All",
             TextColor3 = Color3.new(1, 1, 1),
             TextTransparency = 0,
             TextSize = 12,
