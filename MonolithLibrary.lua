@@ -6152,35 +6152,16 @@ function Library:Notify(...)
 
     -- Build History UI element if container exists
     if Library.NotificationHistoryContainer then
-        local HistoryFrame = New("TextButton", {
+        local HistoryFrame = New("Frame", {
             BackgroundColor3 = "MainColor",
             AutomaticSize = Enum.AutomaticSize.Y,
             Size = UDim2.new(1, 0, 0, 0),
-            Text = "",
-            AutoButtonColor = false,
             Parent = Library.NotificationHistoryContainer,
         })
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
         New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
         New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
         New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
-
-        HistoryFrame.MouseEnter:Connect(function()
-            TweenService:Create(HistoryFrame, TweenInfo.new(0.15), {
-                BackgroundColor3 = Library:GetBetterColor(Library.Scheme.MainColor, 10)
-            }):Play()
-        end)
-        HistoryFrame.MouseLeave:Connect(function()
-            TweenService:Create(HistoryFrame, TweenInfo.new(0.15), {
-                BackgroundColor3 = Library.Scheme.MainColor
-            }):Play()
-        end)
-        HistoryFrame.MouseButton1Click:Connect(function()
-            if setclipboard then
-                local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
-                setclipboard(copyText)
-            end
-        end)
 
         local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
         
@@ -6222,6 +6203,46 @@ function Library:Notify(...)
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = HistoryFrame,
         })
+
+        -- Copy Button Container
+        local BottomBar = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 14),
+            Parent = HistoryFrame
+        })
+        local CopyBtn = New("TextButton", {
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, 0, 0, 0),
+            Size = UDim2.fromOffset(50, 14),
+            Text = "Copy",
+            TextColor3 = "FontColor",
+            TextTransparency = 0.5,
+            TextSize = 11,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = BottomBar
+        })
+        local copyTimerId = 0
+        CopyBtn.MouseButton1Click:Connect(function()
+            if setclipboard then
+                local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
+                setclipboard(copyText)
+                
+                CopyBtn.Text = "Copied!"
+                CopyBtn.TextColor3 = Library.Scheme.AccentColor or Color3.fromRGB(255, 255, 255)
+                CopyBtn.TextTransparency = 0
+                copyTimerId = copyTimerId + 1
+                local currentId = copyTimerId
+                task.delay(2, function()
+                    if copyTimerId == currentId then
+                        CopyBtn.Text = "Copy"
+                        CopyBtn.TextColor3 = Library.Scheme.FontColor or Color3.fromRGB(255, 255, 255)
+                        CopyBtn.TextTransparency = 0.5
+                    end
+                end)
+            end
+        end)
 
         -- Sort logically
         for i, entry in ipairs(Library.NotificationHistory) do
@@ -9077,32 +9098,19 @@ function Library:CreateWindow(WindowInfo)
         })
         New("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = TitleLabel })
 
-        local Container = New("ScrollingFrame", {
-            BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 35),
-            Size = UDim2.new(1, 0, 1, -35),
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarThickness = 2,
-            Parent = Frame,
-        })
-        New("UIListLayout", { Padding = UDim.new(0, 7), Parent = Container })
-        New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 7), Parent = Container })
-        
-        Library.NotificationHistoryFrame = Frame
-        Library.NotificationHistoryContainer = Container
-
-        -- Add Search Box for Notification History
+        -- Add Search Box for Notification History at the top
         local HistorySearchContainer = New("Frame", {
             BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 35),
             Size = UDim2.new(1, 0, 0, 32),
-            LayoutOrder = -1,
-            Parent = Container,
+            Parent = Frame,
         })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 4), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 4), Parent = HistorySearchContainer })
+        
         local HistorySearchBox = New("TextBox", {
             BackgroundColor3 = "MainColor",
             PlaceholderText = "Search notifications...",
-            Size = UDim2.new(1, -40, 1, 0),
+            Size = UDim2.new(1, -34, 1, 0),
             TextScaled = true,
             Parent = HistorySearchContainer,
         })
@@ -9112,23 +9120,45 @@ function Library:CreateWindow(WindowInfo)
 
         local ClearBtn = New("TextButton", {
             BackgroundColor3 = "MainColor",
-            Position = UDim2.new(1, -32, 0, 0),
-            Size = UDim2.fromOffset(32, 32),
+            Position = UDim2.new(1, -26, 0, 0), -- Positioned at the very right
+            Size = UDim2.fromOffset(26, 26),
             Text = "X",
             TextColor3 = "FontColor",
             Parent = HistorySearchContainer,
         })
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = ClearBtn }))
         New("UIStroke", { Color = "OutlineColor", Parent = ClearBtn })
-        
         ClearBtn.MouseButton1Click:Connect(function()
+            -- 履歴UIをすべて削除
             for _, Child in Container:GetChildren() do
-                if Child:IsA("Frame") and Child ~= HistorySearchContainer then
+                if Child:IsA("Frame") then
                     Child:Destroy()
                 end
             end
+            -- 履歴のデータを空にする
             table.clear(Library.NotificationHistory)
+            
+            -- 未読バッジなどをリセット
+            Library.NotificationUnreadCount = 0
+            if Library.NotificationBadge then
+                Library.NotificationBadge.Visible = false
+            end
         end)
+
+        local Container = New("ScrollingFrame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 67), -- Moved down to accommodate search box
+            Size = UDim2.new(1, 0, 1, -67),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 2,
+            Parent = Frame,
+        })
+        New("UIListLayout", { Padding = UDim.new(0, 7), Parent = Container })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 0), Parent = Container })
+        
+        Library.NotificationHistoryFrame = Frame
+        Library.NotificationHistoryContainer = Container
 
         HistorySearchBox:GetPropertyChangedSignal("Text"):Connect(function()
             local Filter = HistorySearchBox.Text:lower()
