@@ -196,6 +196,26 @@ local Library = {
     ActiveLoading = nil,
     ActiveDialog = nil,
 
+    --// Notification History \\--
+    NotificationHistory = {},
+    NotificationHistoryLimit = 30,
+    NotificationHistoryKeybind = Enum.KeyCode.RightAlt,
+    NotificationHistoryFrame = nil,
+    NotificationHistoryContainer = nil,
+    NotificationHistoryOpen = false,
+    NotificationHistorySearchText = "",
+    NotificationHistorySearchBox = nil,
+    NotificationUnreadCount = 0,
+    NotificationBadge = nil,
+    NotificationBadges = {},
+    NotificationBell = nil,
+    NotificationTypeColors = {
+        Error   = Color3.fromRGB(255,  76,  76),
+        Warning = Color3.fromRGB(255, 176,  32),
+        Success = Color3.fromRGB( 96, 216, 118),
+        Info    = Color3.fromRGB( 96, 165, 255),
+    },
+
     Corners = {},
 
     ToggleKeybind = Enum.KeyCode.RightShift,
@@ -215,6 +235,10 @@ local Library = {
     ForceCheckbox = false,
     ShowToggleFrameInKeybinds = true,
     NotifyOnError = false,
+
+    --// Search \\--
+    FuzzySearch = true,
+    SearchValues = true,
 
     CantDragForced = false,
 
@@ -347,6 +371,15 @@ local Templates = {
 
         --// Dragging \\--
         CompactWidthActivation = 128,
+
+        --// Search \\--
+        SearchKeybind = Enum.KeyCode.F,
+        DisableSearchKeybind = false,
+        FuzzySearch = true,
+        SearchValues = true,
+
+        --// Notification Bell \\--
+        DisableNotificationBell = false,
     },
     Dialog = {
         Title = "Dialog",
@@ -646,7 +679,117 @@ function Library:UpdateDependencyBoxes()
     end
 end
 
-local function CheckDepbox(Box, Search)
+--// Fuzzy Search \\--
+local function FuzzyScore(Text, Search)
+    if Search == "" then
+        return true, 0
+    end
+    if Text == "" then
+        return false, 0
+    end
+
+    --// Fast path: literal substring match (also the best possible score) \\--
+    local ExactIdx = Text:find(Search, 1, true)
+    if ExactIdx then
+        local PrevChar = ExactIdx > 1 and Text:sub(ExactIdx - 1, ExactIdx - 1) or ""
+        local AtBoundary = ExactIdx == 1 or PrevChar:match("[%s%p_]") ~= nil
+
+        return true, 1e5 - ExactIdx + (AtBoundary and 500 or 0) + (Search:len() * 5)
+    end
+
+    --// Fallback: fuzzy, in-order, non-consecutive character matching \\--
+    local TextLen, SearchLen = Text:len(), Search:len()
+    if SearchLen > TextLen then
+        return false, 0
+    end
+
+    local SearchIdx = 1
+    local Score = 0
+    local RunLength = 0
+    local LastMatchIdx = 0
+
+    for TextIdx = 1, TextLen do
+        if SearchIdx > SearchLen then
+            break
+        end
+
+        if Text:sub(TextIdx, TextIdx) == Search:sub(SearchIdx, SearchIdx) then
+            local PrevChar = TextIdx > 1 and Text:sub(TextIdx - 1, TextIdx - 1) or ""
+            local AtBoundary = TextIdx == 1 or PrevChar:match("[%s%p_]") ~= nil
+
+            RunLength = (LastMatchIdx == TextIdx - 1) and (RunLength + 1) or 1
+            Score += 1 + (AtBoundary and 6 or 0) + math.min(RunLength - 1, 5) * 3
+
+            LastMatchIdx = TextIdx
+            SearchIdx += 1
+        end
+    end
+
+    if SearchIdx <= SearchLen then
+        return false, 0 --// Not every Search character was found, in order
+    end
+
+    Score -= (LastMatchIdx - SearchLen) * 0.05 --// Slightly favour tighter matches
+    return true, Score
+end
+
+local function NormalizeSearch(Search)
+    return (Search:gsub("%s+", ""))
+end
+
+local function TryFuzzyMatch(Text, Search)
+    if typeof(Text) ~= "string" or Text == "" then
+        return false
+    end
+
+    if not Library.FuzzySearch then
+        return Text:lower():match(Search) ~= nil
+    end
+
+    return (FuzzyScore(Text:lower(), Search))
+end
+
+local function MatchesSearch(ElementInfo, Search, ForceMatch)
+    if not ElementInfo then
+        return false
+    end
+    if ForceMatch then
+        return true
+    end
+
+    if TryFuzzyMatch(ElementInfo.Text, Search) then
+        return true
+    end
+    if TryFuzzyMatch(ElementInfo.Tooltip, Search) then
+        return true
+    end
+    if TryFuzzyMatch(ElementInfo.DisabledTooltip, Search) then
+        return true
+    end
+
+    --// Optional: search inside Dropdown value lists, so e.g. searching a
+    --// specific option name reveals the Dropdown that contains it \\--
+    if Library.SearchValues and typeof(ElementInfo.Values) == "table" then
+        local Checked = 0
+        for Key, Value in ElementInfo.Values do
+            Checked += 1
+            if Checked > 200 then
+                break
+            end
+
+            if TryFuzzyMatch(Value, Search) or (typeof(Value) ~= "string" and TryFuzzyMatch(tostring(Value), Search)) then
+                return true
+            end
+            if typeof(Key) == "string" and TryFuzzyMatch(Key, Search) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function CheckDepbox(Box, Search, ForceVisible)
     local VisibleElements = 0
 
     for _, ElementInfo in Box.Elements do
@@ -658,12 +801,12 @@ local function CheckDepbox(Box, Search)
             local Visible = false
 
             --// Check if Search matches Element's Name and if Element is Visible
-            if ElementInfo.Text:lower():match(Search) and ElementInfo.Visible then
+            if MatchesSearch(ElementInfo, Search, ForceVisible) and ElementInfo.Visible then
                 Visible = true
             else
                 ElementInfo.Base.Visible = false
             end
-            if ElementInfo.SubButton.Text:lower():match(Search) and ElementInfo.SubButton.Visible then
+            if MatchesSearch(ElementInfo.SubButton, Search, ForceVisible) and ElementInfo.SubButton.Visible then
                 Visible = true
             else
                 ElementInfo.SubButton.Base.Visible = false
@@ -677,7 +820,7 @@ local function CheckDepbox(Box, Search)
         end
 
         --// Check if Search matches Element's Name and if Element is Visible
-        if ElementInfo.Text and ElementInfo.Text:lower():match(Search) and ElementInfo.Visible then
+        if ElementInfo.Text and MatchesSearch(ElementInfo, Search, ForceVisible) and ElementInfo.Visible then
             ElementInfo.Holder.Visible = true
             VisibleElements += 1
         else
@@ -690,7 +833,7 @@ local function CheckDepbox(Box, Search)
             continue
         end
 
-        VisibleElements += CheckDepbox(Depbox, Search)
+        VisibleElements += CheckDepbox(Depbox, Search, ForceVisible)
     end
 
     Box.Holder.Visible = VisibleElements > 0
@@ -728,22 +871,23 @@ local function ApplySearchToTab(Tab, Search)
     --// Loop through Groupboxes to get Elements Info
     for _, Groupbox in Tab.Groupboxes do
         local VisibleElements = 0
+        local GroupboxMatches = TryFuzzyMatch(Groupbox.Name, Search)
 
         for _, ElementInfo in Groupbox.Elements do
             if ElementInfo.Type == "Divider" then
-                ElementInfo.Holder.Visible = false
+                ElementInfo.Holder.Visible = GroupboxMatches and ElementInfo.Visible ~= false
                 continue
             elseif ElementInfo.SubButton then
                 --// Check if any of the Buttons Name matches with Search
                 local Visible = false
 
                 --// Check if Search matches Element's Name and if Element is Visible
-                if ElementInfo.Text:lower():match(Search) and ElementInfo.Visible then
+                if MatchesSearch(ElementInfo, Search, GroupboxMatches) and ElementInfo.Visible then
                     Visible = true
                 else
                     ElementInfo.Base.Visible = false
                 end
-                if ElementInfo.SubButton.Text:lower():match(Search) and ElementInfo.SubButton.Visible then
+                if MatchesSearch(ElementInfo.SubButton, Search, GroupboxMatches) and ElementInfo.SubButton.Visible then
                     Visible = true
                 else
                     ElementInfo.SubButton.Base.Visible = false
@@ -757,7 +901,7 @@ local function ApplySearchToTab(Tab, Search)
             end
 
             --// Check if Search matches Element's Name and if Element is Visible
-            if ElementInfo.Text and ElementInfo.Text:lower():match(Search) and ElementInfo.Visible then
+            if ElementInfo.Text and MatchesSearch(ElementInfo, Search, GroupboxMatches) and ElementInfo.Visible then
                 ElementInfo.Holder.Visible = true
                 VisibleElements += 1
             else
@@ -770,7 +914,7 @@ local function ApplySearchToTab(Tab, Search)
                 continue
             end
 
-            VisibleElements += CheckDepbox(Depbox, Search)
+            VisibleElements += CheckDepbox(Depbox, Search, GroupboxMatches)
         end
 
         --// Update Groupbox Size and Visibility if found any element
@@ -787,22 +931,24 @@ local function ApplySearchToTab(Tab, Search)
 
         for _, SubTab in Tabbox.Tabs do
             VisibleElements[SubTab] = 0
+            
+            local SubTabMatches = TryFuzzyMatch(SubTab.Name, Search)
 
             for _, ElementInfo in SubTab.Elements do
                 if ElementInfo.Type == "Divider" then
-                    ElementInfo.Holder.Visible = false
+                    ElementInfo.Holder.Visible = SubTabMatches and ElementInfo.Visible ~= false
                     continue
                 elseif ElementInfo.SubButton then
                     --// Check if any of the Buttons Name matches with Search
                     local Visible = false
 
                     --// Check if Search matches Element's Name and if Element is Visible
-                    if ElementInfo.Text:lower():match(Search) and ElementInfo.Visible then
+                    if MatchesSearch(ElementInfo, Search, SubTabMatches) and ElementInfo.Visible then
                         Visible = true
                     else
                         ElementInfo.Base.Visible = false
                     end
-                    if ElementInfo.SubButton.Text:lower():match(Search) and ElementInfo.SubButton.Visible then
+                    if MatchesSearch(ElementInfo.SubButton, Search, SubTabMatches) and ElementInfo.SubButton.Visible then
                         Visible = true
                     else
                         ElementInfo.SubButton.Base.Visible = false
@@ -816,7 +962,7 @@ local function ApplySearchToTab(Tab, Search)
                 end
 
                 --// Check if Search matches Element's Name and if Element is Visible
-                if ElementInfo.Text and ElementInfo.Text:lower():match(Search) and ElementInfo.Visible then
+                if ElementInfo.Text and MatchesSearch(ElementInfo, Search, SubTabMatches) and ElementInfo.Visible then
                     ElementInfo.Holder.Visible = true
                     VisibleElements[SubTab] += 1
                 else
@@ -829,7 +975,7 @@ local function ApplySearchToTab(Tab, Search)
                     continue
                 end
 
-                VisibleElements[SubTab] += CheckDepbox(Depbox, Search)
+                VisibleElements[SubTab] += CheckDepbox(Depbox, Search, SubTabMatches)
             end
         end
 
@@ -853,6 +999,7 @@ local function ApplySearchToTab(Tab, Search)
 
     return HasVisible
 end
+
 local function ResetTab(Tab)
     if not Tab then
         return
@@ -6318,6 +6465,167 @@ function Library:Notify(...)
     return Data
 end
 
+
+function Library:BuildNotificationHistory()
+    if Library.NotificationHistoryFrame then return end
+    
+    local Frame = New("Frame", {
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = "BackgroundColor",
+        Position = UDim2.new(1, -6, 0, 48),
+        Size = UDim2.fromOffset(300, 400),
+        ZIndex = 50,
+        Visible = false,
+        Parent = Library.ScreenGui,
+    })
+    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Frame }))
+    Library:AddOutline(Frame)
+    table.insert(Library.Scales, New("UIScale", { Parent = Frame }))
+    
+    local Title = New("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(12, 12),
+        Size = UDim2.new(1, -24, 0, 20),
+        Text = "Notification History",
+        TextSize = 16,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = "FontColor",
+        ZIndex = 51,
+        Parent = Frame,
+    })
+    
+    local ClearBtn = New("TextButton", {
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = "MainColor",
+        Position = UDim2.new(1, -12, 0, 10),
+        Size = UDim2.fromOffset(60, 24),
+        Text = "Clear",
+        TextSize = 13,
+        TextColor3 = "FontColor",
+        ZIndex = 51,
+        Parent = Frame,
+    })
+    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = ClearBtn }))
+    Library:AddOutline(ClearBtn)
+    
+    ClearBtn.MouseButton1Click:Connect(function()
+        Library.NotificationHistory = {}
+        Library:RefreshNotificationHistory()
+    end)
+    
+    local Container = New("ScrollingFrame", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(12, 44),
+        Size = UDim2.new(1, -24, 1, -56),
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = "OutlineColor",
+        ZIndex = 51,
+        Parent = Frame,
+    })
+    New("UIListLayout", { Padding = UDim.new(0, 8), Parent = Container })
+    
+    Library.NotificationHistoryFrame = Frame
+    Library.NotificationHistoryContainer = Container
+end
+
+function Library:RefreshNotificationHistory()
+    if not Library.NotificationHistoryContainer then return end
+    
+    for _, child in Library.NotificationHistoryContainer:GetChildren() do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    for _, notif in Library.NotificationHistory do
+        local Card = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            ZIndex = 52,
+            Parent = Library.NotificationHistoryContainer,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Card }))
+        Library:AddOutline(Card)
+        New("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = Card })
+        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = Card })
+        
+        local AccentColor = "FontColor"
+        if notif.Type and Library.NotificationTypeColors[notif.Type] then
+            AccentColor = Library.NotificationTypeColors[notif.Type]
+        end
+        
+        if notif.Title then
+            New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 16),
+                Text = notif.Title,
+                TextSize = 14,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextColor3 = AccentColor,
+                ZIndex = 53,
+                Parent = Card,
+            })
+        end
+        
+        if notif.Description then
+            New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Text = notif.Description,
+                TextSize = 13,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextColor3 = "FontColor",
+                ZIndex = 53,
+                Parent = Card,
+            })
+        end
+        
+        local TimeAgo = os.time() - (notif.Time or os.time())
+        local TimeStr = timeAgoString(TimeAgo)
+        
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 12),
+            Text = TimeStr,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextColor3 = "FontColor",
+            TextTransparency = 0.5,
+            ZIndex = 53,
+            Parent = Card,
+        })
+    end
+end
+
+function timeAgoString(diff)
+    if diff < 60 then return "Just now" end
+    if diff < 3600 then return math.floor(diff/60) .. "m ago" end
+    if diff < 86400 then return math.floor(diff/3600) .. "h ago" end
+    return math.floor(diff/86400) .. "d ago"
+end
+
+function Library:ToggleNotificationHistory()
+    if not Library.NotificationHistoryFrame then
+        Library:BuildNotificationHistory()
+    end
+    
+    Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
+    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
+    
+    if Library.NotificationHistoryOpen then
+        Library:RefreshNotificationHistory()
+        Library.NotificationUnreadCount = 0
+        if Library.NotificationBadge then
+            Library.NotificationBadge.Visible = false
+        end
+    end
+end
+
 function Library:CreateWindow(WindowInfo)
     WindowInfo = Library:Validate(WindowInfo, Templates.Window)
     local ViewportSize: Vector2 = workspace.CurrentCamera.ViewportSize
@@ -9423,3 +9731,7 @@ Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
 
 getgenv().Library = Library
 return Library
+
+
+
+
