@@ -196,7 +196,7 @@ local Library = {
     ActiveLoading = nil,
     ActiveDialog = nil,
 
-    --// Notification History \\--
+    --// Notification History (built-in) \\--
     NotificationHistory = {},
     NotificationHistoryLimit = 30,
     NotificationHistoryKeybind = Enum.KeyCode.RightAlt,
@@ -215,6 +215,9 @@ local Library = {
         Success = Color3.fromRGB( 96, 216, 118),
         Info    = Color3.fromRGB( 96, 165, 255),
     },
+
+    FuzzySearch = true,
+    SearchValues = true,
 
     Corners = {},
 
@@ -235,10 +238,6 @@ local Library = {
     ForceCheckbox = false,
     ShowToggleFrameInKeybinds = true,
     NotifyOnError = false,
-
-    --// Search \\--
-    FuzzySearch = true,
-    SearchValues = true,
 
     CantDragForced = false,
 
@@ -378,7 +377,7 @@ local Templates = {
         FuzzySearch = true,
         SearchValues = true,
 
-        --// Notification Bell \\--
+        --// Notifications \\--
         DisableNotificationBell = false,
     },
     Dialog = {
@@ -680,116 +679,58 @@ function Library:UpdateDependencyBoxes()
 end
 
 --// Fuzzy Search \\--
-local function FuzzyScore(Text, Search)
-    if Search == "" then
-        return true, 0
-    end
-    if Text == "" then
-        return false, 0
-    end
-
-    --// Fast path: literal substring match (also the best possible score) \\--
-    local ExactIdx = Text:find(Search, 1, true)
-    if ExactIdx then
-        local PrevChar = ExactIdx > 1 and Text:sub(ExactIdx - 1, ExactIdx - 1) or ""
-        local AtBoundary = ExactIdx == 1 or PrevChar:match("[%s%p_]") ~= nil
-
-        return true, 1e5 - ExactIdx + (AtBoundary and 500 or 0) + (Search:len() * 5)
-    end
-
-    --// Fallback: fuzzy, in-order, non-consecutive character matching \\--
-    local TextLen, SearchLen = Text:len(), Search:len()
-    if SearchLen > TextLen then
-        return false, 0
-    end
-
-    local SearchIdx = 1
+local function FuzzyScore(Pattern, Str)
     local Score = 0
-    local RunLength = 0
-    local LastMatchIdx = 0
+    local Pi = 1
+    local Si = 1
+    local Pl = #Pattern
+    local Sl = #Str
+    local LastMatch = -1
 
-    for TextIdx = 1, TextLen do
-        if SearchIdx > SearchLen then
-            break
+    while Pi <= Pl and Si <= Sl do
+        local P = Pattern:sub(Pi, Pi)
+        local S = Str:sub(Si, Si)
+
+        if P == S then
+            Score = Score + 1 + (Si == LastMatch + 1 and 2 or 0)
+            LastMatch = Si
+            Pi += 1
         end
 
-        if Text:sub(TextIdx, TextIdx) == Search:sub(SearchIdx, SearchIdx) then
-            local PrevChar = TextIdx > 1 and Text:sub(TextIdx - 1, TextIdx - 1) or ""
-            local AtBoundary = TextIdx == 1 or PrevChar:match("[%s%p_]") ~= nil
-
-            RunLength = (LastMatchIdx == TextIdx - 1) and (RunLength + 1) or 1
-            Score += 1 + (AtBoundary and 6 or 0) + math.min(RunLength - 1, 5) * 3
-
-            LastMatchIdx = TextIdx
-            SearchIdx += 1
-        end
+        Si += 1
     end
 
-    if SearchIdx <= SearchLen then
-        return false, 0 --// Not every Search character was found, in order
-    end
-
-    Score -= (LastMatchIdx - SearchLen) * 0.05 --// Slightly favour tighter matches
-    return true, Score
+    return Pi > Pl and Score or -1
 end
 
-local function NormalizeSearch(Search)
-    return (Search:gsub("%s+", ""))
+local function NormalizeSearch(Text)
+    return Text:lower():gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1")
 end
 
 local function TryFuzzyMatch(Text, Search)
-    if typeof(Text) ~= "string" or Text == "" then
-        return false
+    if Library.FuzzySearch then
+        return FuzzyScore(Search, Text) >= 0
+    else
+        return Text:match(Search) ~= nil
     end
-
-    if not Library.FuzzySearch then
-        return Text:lower():match(Search) ~= nil
-    end
-
-    return (FuzzyScore(Text:lower(), Search))
 end
 
-local function MatchesSearch(ElementInfo, Search, ForceMatch)
-    if not ElementInfo then
-        return false
-    end
-    if ForceMatch then
+local function MatchesSearch(ElementInfo, Search)
+    if ElementInfo.Text and TryFuzzyMatch(ElementInfo.Text:lower(), Search) then
         return true
     end
-
-    if TryFuzzyMatch(ElementInfo.Text, Search) then
-        return true
-    end
-    if TryFuzzyMatch(ElementInfo.Tooltip, Search) then
-        return true
-    end
-    if TryFuzzyMatch(ElementInfo.DisabledTooltip, Search) then
-        return true
-    end
-
-    --// Optional: search inside Dropdown value lists, so e.g. searching a
-    --// specific option name reveals the Dropdown that contains it \\--
-    if Library.SearchValues and typeof(ElementInfo.Values) == "table" then
-        local Checked = 0
-        for Key, Value in ElementInfo.Values do
-            Checked += 1
-            if Checked > 200 then
-                break
-            end
-
-            if TryFuzzyMatch(Value, Search) or (typeof(Value) ~= "string" and TryFuzzyMatch(tostring(Value), Search)) then
-                return true
-            end
-            if typeof(Key) == "string" and TryFuzzyMatch(Key, Search) then
+    -- Also search dropdown values when enabled
+    if Library.SearchValues and ElementInfo.Values then
+        for _, V in ElementInfo.Values do
+            if TryFuzzyMatch(tostring(V):lower(), Search) then
                 return true
             end
         end
     end
-
     return false
 end
 
-local function CheckDepbox(Box, Search, ForceVisible)
+local function CheckDepbox(Box, Search)
     local VisibleElements = 0
 
     for _, ElementInfo in Box.Elements do
@@ -801,12 +742,12 @@ local function CheckDepbox(Box, Search, ForceVisible)
             local Visible = false
 
             --// Check if Search matches Element's Name and if Element is Visible
-            if MatchesSearch(ElementInfo, Search, ForceVisible) and ElementInfo.Visible then
+            if MatchesSearch(ElementInfo, Search) and ElementInfo.Visible then
                 Visible = true
             else
                 ElementInfo.Base.Visible = false
             end
-            if MatchesSearch(ElementInfo.SubButton, Search, ForceVisible) and ElementInfo.SubButton.Visible then
+            if MatchesSearch(ElementInfo.SubButton, Search) and ElementInfo.SubButton.Visible then
                 Visible = true
             else
                 ElementInfo.SubButton.Base.Visible = false
@@ -820,7 +761,7 @@ local function CheckDepbox(Box, Search, ForceVisible)
         end
 
         --// Check if Search matches Element's Name and if Element is Visible
-        if ElementInfo.Text and MatchesSearch(ElementInfo, Search, ForceVisible) and ElementInfo.Visible then
+        if MatchesSearch(ElementInfo, Search) and ElementInfo.Visible then
             ElementInfo.Holder.Visible = true
             VisibleElements += 1
         else
@@ -833,7 +774,7 @@ local function CheckDepbox(Box, Search, ForceVisible)
             continue
         end
 
-        VisibleElements += CheckDepbox(Depbox, Search, ForceVisible)
+        VisibleElements += CheckDepbox(Depbox, Search)
     end
 
     Box.Holder.Visible = VisibleElements > 0
@@ -871,23 +812,22 @@ local function ApplySearchToTab(Tab, Search)
     --// Loop through Groupboxes to get Elements Info
     for _, Groupbox in Tab.Groupboxes do
         local VisibleElements = 0
-        local GroupboxMatches = TryFuzzyMatch(Groupbox.Name, Search)
 
         for _, ElementInfo in Groupbox.Elements do
             if ElementInfo.Type == "Divider" then
-                ElementInfo.Holder.Visible = GroupboxMatches and ElementInfo.Visible ~= false
+                ElementInfo.Holder.Visible = false
                 continue
             elseif ElementInfo.SubButton then
                 --// Check if any of the Buttons Name matches with Search
                 local Visible = false
 
                 --// Check if Search matches Element's Name and if Element is Visible
-                if MatchesSearch(ElementInfo, Search, GroupboxMatches) and ElementInfo.Visible then
+                if MatchesSearch(ElementInfo, Search) and ElementInfo.Visible then
                     Visible = true
                 else
                     ElementInfo.Base.Visible = false
                 end
-                if MatchesSearch(ElementInfo.SubButton, Search, GroupboxMatches) and ElementInfo.SubButton.Visible then
+                if MatchesSearch(ElementInfo.SubButton, Search) and ElementInfo.SubButton.Visible then
                     Visible = true
                 else
                     ElementInfo.SubButton.Base.Visible = false
@@ -901,7 +841,7 @@ local function ApplySearchToTab(Tab, Search)
             end
 
             --// Check if Search matches Element's Name and if Element is Visible
-            if ElementInfo.Text and MatchesSearch(ElementInfo, Search, GroupboxMatches) and ElementInfo.Visible then
+            if MatchesSearch(ElementInfo, Search) and ElementInfo.Visible then
                 ElementInfo.Holder.Visible = true
                 VisibleElements += 1
             else
@@ -914,7 +854,7 @@ local function ApplySearchToTab(Tab, Search)
                 continue
             end
 
-            VisibleElements += CheckDepbox(Depbox, Search, GroupboxMatches)
+            VisibleElements += CheckDepbox(Depbox, Search)
         end
 
         --// Update Groupbox Size and Visibility if found any element
@@ -931,24 +871,22 @@ local function ApplySearchToTab(Tab, Search)
 
         for _, SubTab in Tabbox.Tabs do
             VisibleElements[SubTab] = 0
-            
-            local SubTabMatches = TryFuzzyMatch(SubTab.Name, Search)
 
             for _, ElementInfo in SubTab.Elements do
                 if ElementInfo.Type == "Divider" then
-                    ElementInfo.Holder.Visible = SubTabMatches and ElementInfo.Visible ~= false
+                    ElementInfo.Holder.Visible = false
                     continue
                 elseif ElementInfo.SubButton then
                     --// Check if any of the Buttons Name matches with Search
                     local Visible = false
 
                     --// Check if Search matches Element's Name and if Element is Visible
-                    if MatchesSearch(ElementInfo, Search, SubTabMatches) and ElementInfo.Visible then
+                    if MatchesSearch(ElementInfo, Search) and ElementInfo.Visible then
                         Visible = true
                     else
                         ElementInfo.Base.Visible = false
                     end
-                    if MatchesSearch(ElementInfo.SubButton, Search, SubTabMatches) and ElementInfo.SubButton.Visible then
+                    if MatchesSearch(ElementInfo.SubButton, Search) and ElementInfo.SubButton.Visible then
                         Visible = true
                     else
                         ElementInfo.SubButton.Base.Visible = false
@@ -962,7 +900,7 @@ local function ApplySearchToTab(Tab, Search)
                 end
 
                 --// Check if Search matches Element's Name and if Element is Visible
-                if ElementInfo.Text and MatchesSearch(ElementInfo, Search, SubTabMatches) and ElementInfo.Visible then
+                if MatchesSearch(ElementInfo, Search) and ElementInfo.Visible then
                     ElementInfo.Holder.Visible = true
                     VisibleElements[SubTab] += 1
                 else
@@ -975,7 +913,7 @@ local function ApplySearchToTab(Tab, Search)
                     continue
                 end
 
-                VisibleElements[SubTab] += CheckDepbox(Depbox, Search, SubTabMatches)
+                VisibleElements[SubTab] += CheckDepbox(Depbox, Search)
             end
         end
 
@@ -999,7 +937,6 @@ local function ApplySearchToTab(Tab, Search)
 
     return HasVisible
 end
-
 local function ResetTab(Tab)
     if not Tab then
         return
@@ -1075,7 +1012,7 @@ function Library:UpdateSearch(SearchText)
         ResetTab(Tab)
     end
 
-    local Search = SearchText:lower()
+    local Search = Library.FuzzySearch and SearchText:lower() or NormalizeSearch(SearchText)
     if Trim(Search) == "" then
         Library.Searching = false
         Library.LastSearchTab = nil
@@ -6158,7 +6095,7 @@ function Library:Notify(...)
     local Info = select(1, ...)
 
     if typeof(Info) == "table" then
-        Data.Title = tostring(Info.Title)
+        Data.Title = Info.Title and tostring(Info.Title) or nil
         Data.Description = tostring(Info.Description)
         Data.Time = Info.Time or 5
         Data.SoundId = Info.SoundId
@@ -6169,11 +6106,124 @@ function Library:Notify(...)
         Data.IconColor = Info.IconColor
         Data.Type = Info.Type
     else
+        Data.Title = nil
         Data.Description = tostring(Info)
         Data.Time = select(2, ...) or 5
         Data.SoundId = select(3, ...)
+        Data.Type = select(4, ...)
     end
     Data.Destroyed = false
+
+    -- Handle Type Color
+    local TypeColor = nil
+    if Data.Type and Library.NotificationTypeColors[Data.Type] then
+        TypeColor = Library.NotificationTypeColors[Data.Type]
+        if not Data.IconColor then
+            Data.IconColor = TypeColor
+        end
+    end
+
+    -- Add to Notification History
+    local HistoryEntry = {
+        Title = Data.Title or "Notification",
+        Description = Data.Description,
+        Type = Data.Type,
+        Time = os.date("%H:%M"),
+        Color = TypeColor or Library.Scheme.AccentColor
+    }
+    table.insert(Library.NotificationHistory, 1, HistoryEntry)
+    if #Library.NotificationHistory > Library.NotificationHistoryLimit then
+        table.remove(Library.NotificationHistory, #Library.NotificationHistory)
+    end
+
+    -- Update Badge
+    if not Library.NotificationHistoryOpen and Library.NotificationBadge then
+        Library.NotificationUnreadCount += 1
+        Library.NotificationBadgeLabel.Text = tostring(Library.NotificationUnreadCount)
+        Library.NotificationBadge.Visible = true
+        if TypeColor then
+            Library.NotificationBadge.BackgroundColor3 = TypeColor
+            Library.Registry[Library.NotificationBadge] = nil
+        else
+            Library.NotificationBadge.BackgroundColor3 = Library.Scheme.RedColor
+            Library.Registry[Library.NotificationBadge] = { BackgroundColor3 = "RedColor" }
+        end
+    end
+
+    -- Build History UI element if container exists
+    if Library.NotificationHistoryContainer then
+        local HistoryFrame = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            Parent = Library.NotificationHistoryContainer,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
+        New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
+        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
+
+        local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
+        
+        local TitleLbl = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -40, 1, 0),
+            Text = HistoryEntry.Title,
+            TextColor3 = HistoryEntry.Color,
+            TextSize = 14,
+            Font = Enum.Font.GothamBold,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = TopBar,
+        })
+        if not TypeColor then
+            Library.Registry[TitleLbl] = { TextColor3 = "AccentColor" }
+        end
+        
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -40, 0, 0),
+            Size = UDim2.new(0, 40, 1, 0),
+            Text = HistoryEntry.Time,
+            TextColor3 = "FontColor",
+            TextTransparency = 0.5,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = TopBar,
+        })
+
+        New("TextLabel", {
+            Name = "Content",
+            BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            Text = HistoryEntry.Description,
+            TextColor3 = "FontColor",
+            TextSize = 13,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = HistoryFrame,
+        })
+
+        -- Sort logically
+        for i, entry in ipairs(Library.NotificationHistory) do
+            local child = Library.NotificationHistoryContainer:GetChildren()[i + 1] -- Skip layout/searchbox
+            if child and child:IsA("Frame") then
+                child.LayoutOrder = i
+            end
+        end
+
+        -- Delete old ones visually
+        local Count = 0
+        for _, Child in ipairs(Library.NotificationHistoryContainer:GetChildren()) do
+            if Child:IsA("Frame") and Child.Name ~= "Frame" then -- "Frame" is SearchBox container
+                Count += 1
+                if Count > Library.NotificationHistoryLimit then
+                    Child:Destroy()
+                end
+            end
+        end
+    end
+
 
     local DeletedInstance = false
     local DeleteConnection = nil
@@ -6437,38 +6487,6 @@ function Library:Notify(...)
 
     Library.Notifications[FakeBackground] = Data
 
-    if not Data.Destroyed then
-        if not Library.NotificationHistory then Library.NotificationHistory = {} end
-        table.insert(Library.NotificationHistory, 1, {
-            Title = Data.Title,
-            Description = Data.Description,
-            Type = Data.Type,
-            Time = os.time(),
-        })
-        if #Library.NotificationHistory > (Library.NotificationHistoryLimit or 30) then
-            table.remove(Library.NotificationHistory)
-        end
-        
-        if Library.NotificationBadge and Library.NotificationBadgeText and not Library.NotificationHistoryOpen then
-            Library.NotificationUnreadCount = (Library.NotificationUnreadCount or 0) + 1
-            Library.NotificationBadgeText.Text = tostring(Library.NotificationUnreadCount)
-            Library.NotificationBadge.Visible = true
-            
-            TweenService:Create(Library.NotificationBadge, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                Size = UDim2.fromOffset(18, 18)
-            }):Play()
-            task.delay(0.15, function()
-                TweenService:Create(Library.NotificationBadge, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                    Size = UDim2.fromOffset(14, 14)
-                }):Play()
-            end)
-        end
-        
-        if Library.RefreshNotificationHistory then
-            Library:RefreshNotificationHistory()
-        end
-    end
-
     FakeBackground.Visible = true
     TweenService:Create(Holder, Library.NotifyTweenInfo, {
         Position = UDim2.fromOffset(0, 0),
@@ -6496,329 +6514,6 @@ function Library:Notify(...)
     end)
 
     return Data
-end
-
-
-function Library:BuildNotificationHistory()
-    if Library.NotificationHistoryFrame then return end
-    
-    local Frame = New("Frame", {
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundColor3 = "BackgroundColor",
-        Position = UDim2.new(1, -6, 0, 48),
-        Size = UDim2.fromOffset(300, 400),
-        ZIndex = 50,
-        Visible = false,
-        Parent = Library.ScreenGui,
-    })
-    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Frame }))
-    Library:AddOutline(Frame)
-    table.insert(Library.Scales, New("UIScale", { Parent = Frame }))
-    
-    local Title = New("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 12),
-        Size = UDim2.new(1, -24, 0, 20),
-        Text = "Notification History",
-        TextSize = 16,
-        Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextColor3 = "FontColor",
-        ZIndex = 51,
-        Parent = Frame,
-    })
-    
-    local ClearBtn = New("TextButton", {
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundColor3 = "MainColor",
-        Position = UDim2.new(1, -12, 0, 10),
-        Size = UDim2.fromOffset(60, 24),
-        Text = "Clear",
-        TextSize = 13,
-        TextColor3 = "FontColor",
-        ZIndex = 51,
-        Parent = Frame,
-    })
-    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = ClearBtn }))
-    Library:AddOutline(ClearBtn)
-    
-    ClearBtn.MouseButton1Click:Connect(function()
-        Library.NotificationHistory = {}
-        Library:RefreshNotificationHistory()
-    end)
-    
-    local Container = New("ScrollingFrame", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 44),
-        Size = UDim2.new(1, -24, 1, -56),
-        ScrollBarThickness = 2,
-        ScrollBarImageColor3 = "OutlineColor",
-        ZIndex = 51,
-        Parent = Frame,
-    })
-    New("UIListLayout", { Padding = UDim.new(0, 8), Parent = Container })
-    
-    Library.NotificationHistoryFrame = Frame
-    Library.NotificationHistoryContainer = Container
-end
-
-function Library:RefreshNotificationHistory()
-    if not Library.NotificationHistoryContainer then return end
-    
-    for _, child in Library.NotificationHistoryContainer:GetChildren() do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    
-    for _, notif in Library.NotificationHistory do
-        local Card = New("Frame", {
-            BackgroundColor3 = "MainColor",
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            ZIndex = 52,
-            Parent = Library.NotificationHistoryContainer,
-        })
-        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Card }))
-        Library:AddOutline(Card)
-        New("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = Card })
-        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = Card })
-        
-        local AccentColor = "FontColor"
-        if notif.Type and Library.NotificationTypeColors[notif.Type] then
-            AccentColor = Library.NotificationTypeColors[notif.Type]
-        end
-        
-        if notif.Title then
-            New("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 16),
-                Text = notif.Title,
-                TextSize = 14,
-                Font = Enum.Font.GothamBold,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = AccentColor,
-                ZIndex = 53,
-                Parent = Card,
-            })
-        end
-        
-        if notif.Description then
-            New("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 0),
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Text = notif.Description,
-                TextSize = 13,
-                TextWrapped = true,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = "FontColor",
-                ZIndex = 53,
-                Parent = Card,
-            })
-        end
-        
-        local TimeAgo = os.time() - (notif.Time or os.time())
-        local TimeStr = timeAgoString(TimeAgo)
-        
-        New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 12),
-            Text = TimeStr,
-            TextSize = 11,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextColor3 = "FontColor",
-            TextTransparency = 0.5,
-            ZIndex = 53,
-            Parent = Card,
-        })
-    end
-end
-
-function timeAgoString(diff)
-    if diff < 60 then return "Just now" end
-    if diff < 3600 then return math.floor(diff/60) .. "m ago" end
-    if diff < 86400 then return math.floor(diff/3600) .. "h ago" end
-    return math.floor(diff/86400) .. "d ago"
-end
-
-function Library:ToggleNotificationHistory()
-    if not Library.NotificationHistoryFrame then
-        Library:BuildNotificationHistory()
-    end
-    
-    Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
-    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
-    
-    if Library.NotificationHistoryOpen then
-        Library:RefreshNotificationHistory()
-        Library.NotificationUnreadCount = 0
-        if Library.NotificationBadge then
-            Library.NotificationBadge.Visible = false
-        end
-    end
-end
-
-function Library:BuildNotificationHistory()
-    if Library.NotificationHistoryFrame then return end
-    
-    local Frame = New("Frame", {
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundColor3 = "BackgroundColor",
-        Position = UDim2.new(1, -6, 0, 48),
-        Size = UDim2.fromOffset(300, 400),
-        ZIndex = 50,
-        Visible = false,
-        Parent = Library.ScreenGui,
-    })
-    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Frame }))
-    Library:AddOutline(Frame)
-    table.insert(Library.Scales, New("UIScale", { Parent = Frame }))
-    
-    local Title = New("TextLabel", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 12),
-        Size = UDim2.new(1, -24, 0, 20),
-        Text = "Notification History",
-        TextSize = 16,
-        Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextColor3 = "FontColor",
-        ZIndex = 51,
-        Parent = Frame,
-    })
-    
-    local ClearBtn = New("TextButton", {
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundColor3 = "MainColor",
-        Position = UDim2.new(1, -12, 0, 10),
-        Size = UDim2.fromOffset(60, 24),
-        Text = "Clear",
-        TextSize = 13,
-        TextColor3 = "FontColor",
-        ZIndex = 51,
-        Parent = Frame,
-    })
-    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = ClearBtn }))
-    Library:AddOutline(ClearBtn)
-    
-    ClearBtn.MouseButton1Click:Connect(function()
-        Library.NotificationHistory = {}
-        if Library.RefreshNotificationHistory then
-            Library:RefreshNotificationHistory()
-        end
-    end)
-    
-    local Container = New("ScrollingFrame", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 44),
-        Size = UDim2.new(1, -24, 1, -56),
-        ScrollBarThickness = 2,
-        ScrollBarImageColor3 = "OutlineColor",
-        ZIndex = 51,
-        Parent = Frame,
-    })
-    New("UIListLayout", { Padding = UDim.new(0, 8), Parent = Container })
-    
-    Library.NotificationHistoryFrame = Frame
-    Library.NotificationHistoryContainer = Container
-end
-
-local function timeAgoString(diff)
-    if diff < 60 then return "Just now" end
-    if diff < 3600 then return math.floor(diff/60) .. "m ago" end
-    if diff < 86400 then return math.floor(diff/3600) .. "h ago" end
-    return math.floor(diff/86400) .. "d ago"
-end
-
-function Library:RefreshNotificationHistory()
-    if not Library.NotificationHistoryContainer then return end
-    
-    for _, child in ipairs(Library.NotificationHistoryContainer:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-    
-    for _, notif in ipairs(Library.NotificationHistory) do
-        local Card = New("Frame", {
-            BackgroundColor3 = "MainColor",
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            ZIndex = 52,
-            Parent = Library.NotificationHistoryContainer,
-        })
-        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Card }))
-        Library:AddOutline(Card)
-        New("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = Card })
-        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = Card })
-        
-        local AccentColor = "FontColor"
-        if notif.Type and Library.NotificationTypeColors and Library.NotificationTypeColors[notif.Type] then
-            AccentColor = Library.NotificationTypeColors[notif.Type]
-        end
-        
-        if notif.Title then
-            New("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 16),
-                Text = notif.Title,
-                TextSize = 14,
-                Font = Enum.Font.GothamBold,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = AccentColor,
-                ZIndex = 53,
-                Parent = Card,
-            })
-        end
-        
-        if notif.Description then
-            New("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 0),
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Text = notif.Description,
-                TextSize = 13,
-                TextWrapped = true,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = "FontColor",
-                ZIndex = 53,
-                Parent = Card,
-            })
-        end
-        
-        local TimeAgo = os.time() - (notif.Time or os.time())
-        local TimeStr = timeAgoString(TimeAgo)
-        
-        New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 12),
-            Text = TimeStr,
-            TextSize = 11,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextColor3 = "FontColor",
-            TextTransparency = 0.5,
-            ZIndex = 53,
-            Parent = Card,
-        })
-    end
-end
-
-function Library:ToggleNotificationHistory()
-    if not Library.NotificationHistoryFrame then
-        Library:BuildNotificationHistory()
-    end
-    
-    Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
-    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
-    
-    if Library.NotificationHistoryOpen then
-        Library:RefreshNotificationHistory()
-        Library.NotificationUnreadCount = 0
-        if Library.NotificationBadge then
-            Library.NotificationBadge.Visible = false
-        end
-    end
 end
 
 function Library:CreateWindow(WindowInfo)
@@ -7134,6 +6829,92 @@ function Library:CreateWindow(WindowInfo)
                 SizeConstraint = Enum.SizeConstraint.RelativeYY,
                 Parent = SearchBox,
             })
+        end
+
+        if not WindowInfo.DisableNotificationBell then
+            local BellButton = New("TextButton", {
+                BackgroundColor3 = "MainColor",
+                Size = UDim2.fromOffset(28, 28),
+                Text = "",
+                Parent = RightWrapper,
+            })
+            New("UIFlexItem", {
+                FlexMode = Enum.UIFlexMode.None,
+                Parent = BellButton,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0, WindowInfo.CornerRadius),
+                    Parent = BellButton,
+                })
+            )
+            New("UIStroke", {
+                Color = "OutlineColor",
+                Parent = BellButton,
+            })
+
+            local BellIcon = Library:GetIcon("bell")
+            if BellIcon then
+                New("ImageLabel", {
+                    BackgroundTransparency = 1,
+                    Image = BellIcon.Url,
+                    ImageColor3 = "FontColor",
+                    ImageRectOffset = BellIcon.ImageRectOffset,
+                    ImageRectSize = BellIcon.ImageRectSize,
+                    ImageTransparency = 0.5,
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(16, 16),
+                    Parent = BellButton,
+                })
+            end
+
+            local Badge = New("Frame", {
+                BackgroundColor3 = Library.NotificationTypeColors.Error, -- Default Red
+                Size = UDim2.fromOffset(14, 14),
+                Position = UDim2.new(1, -6, 0, -4),
+                Visible = false,
+                ZIndex = 2,
+                Parent = BellButton,
+            })
+            Library.Registry[Badge] = { BackgroundColor3 = "RedColor" }
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(1, 0),
+                    Parent = Badge,
+                })
+            )
+            local BadgeLabel = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                Text = "0",
+                TextColor3 = Color3.new(1, 1, 1),
+                TextSize = 10,
+                ZIndex = 3,
+                Parent = Badge,
+            })
+            
+            Library.NotificationBell = BellButton
+            Library.NotificationBadge = Badge
+            Library.NotificationBadgeLabel = BadgeLabel
+
+            BellButton.MouseButton1Click:Connect(function()
+                Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
+                if Library.NotificationHistoryFrame then
+                    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
+                    if Library.NotificationHistoryOpen then
+                        Library.NotificationUnreadCount = 0
+                        Badge.Visible = false
+                        
+                        -- Focus search if history opened
+                        if Library.NotificationHistorySearchBox then
+                            Library.NotificationHistorySearchBox:CaptureFocus()
+                        end
+                    end
+                end
+            end)
         end
 
         do
@@ -9214,6 +8995,109 @@ function Library:CreateWindow(WindowInfo)
         Library.IsRobloxFocused = false
     end))
 
+    --// Search & Notification Keybinds \\--
+    Library:GiveSignal(UserInputService.InputBegan:Connect(function(Input: InputObject)
+        if Library.Unloaded then
+            return
+        end
+
+        local Focused = UserInputService:GetFocusedTextBox()
+        -- Search Keybind
+        if not WindowInfo.DisableSearchKeybind and Input.KeyCode == WindowInfo.SearchKeybind then
+            if not Focused and SearchBox.Visible then
+                SearchBox:CaptureFocus()
+                return
+            end
+        end
+
+        -- Notification History Keybind
+        if not Focused and Input.KeyCode == Library.NotificationHistoryKeybind then
+            if Library.NotificationBell and Library.NotificationBell.Visible then
+                -- Simulate clicking the bell button to toggle history
+                Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
+                if Library.NotificationHistoryFrame then
+                    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
+                    if Library.NotificationHistoryOpen then
+                        Library.NotificationUnreadCount = 0
+                        Library.NotificationBadge.Visible = false
+                        if Library.NotificationHistorySearchBox then
+                            Library.NotificationHistorySearchBox:CaptureFocus()
+                        end
+                    end
+                end
+            end
+        end
+    end))
+
+    --// Notification History Menu \\--
+    do
+        local Frame, Container = Library:AddDraggableMenu("Notification History")
+        Frame.Visible = false
+        Frame.Size = UDim2.fromOffset(300, 400)
+        Frame.Position = UDim2.new(1, -310, 0, 55) -- Default position top right
+        
+        Library.NotificationHistoryFrame = Frame
+        Library.NotificationHistoryContainer = Container
+
+        -- Add Search Box for Notification History
+        local HistorySearchContainer = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 32),
+            LayoutOrder = -1,
+            Parent = Container,
+        })
+        local HistorySearchBox = New("TextBox", {
+            BackgroundColor3 = "MainColor",
+            PlaceholderText = "Search notifications...",
+            Size = UDim2.new(1, -40, 1, 0),
+            TextScaled = true,
+            Parent = HistorySearchContainer,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistorySearchBox }))
+        New("UIStroke", { Color = "OutlineColor", Parent = HistorySearchBox })
+        New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4), Parent = HistorySearchBox })
+
+        local ClearBtn = New("TextButton", {
+            BackgroundColor3 = "MainColor",
+            Position = UDim2.new(1, -32, 0, 0),
+            Size = UDim2.fromOffset(32, 32),
+            Text = "X",
+            TextColor3 = "FontColor",
+            Parent = HistorySearchContainer,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = ClearBtn }))
+        New("UIStroke", { Color = "OutlineColor", Parent = ClearBtn })
+        
+        ClearBtn.MouseButton1Click:Connect(function()
+            for _, Child in Container:GetChildren() do
+                if Child:IsA("Frame") and Child ~= HistorySearchContainer then
+                    Child:Destroy()
+                end
+            end
+            table.clear(Library.NotificationHistory)
+        end)
+
+        HistorySearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            local Filter = HistorySearchBox.Text:lower()
+            Library.NotificationHistorySearchText = Filter
+            for _, Child in Container:GetChildren() do
+                if Child:IsA("Frame") and Child ~= HistorySearchContainer then
+                    local ContentLabel = Child:FindFirstChild("Content")
+                    if ContentLabel and ContentLabel:IsA("TextLabel") then
+                        if Filter == "" or ContentLabel.Text:lower():match(Filter) then
+                            Child.Visible = true
+                        else
+                            Child.Visible = false
+                        end
+                    end
+                end
+            end
+        end)
+
+        Library.NotificationHistorySearchBox = HistorySearchBox
+    end
+
+
     return Window
 end
 
@@ -9926,9 +9810,3 @@ Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
 
 getgenv().Library = Library
 return Library
-
-
-
-
-
-
