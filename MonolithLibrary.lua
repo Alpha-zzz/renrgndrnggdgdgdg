@@ -8987,29 +8987,18 @@ function Library:CreateWindow(WindowInfo)
             local Frame = Library.NotificationHistoryFrame
             local ScaleObj = Frame:FindFirstChildOfClass("UIScale")
             
+            if ScaleObj then
+                ScaleObj.Scale = 1 -- アニメーションしないのでスケールは常に1
+            end
+
             if Library.NotificationHistoryOpen then
                 Frame.Visible = true
                 Library.NotificationUnreadCount = 0
                 if Library.NotificationBadge then
                     Library.NotificationBadge.Visible = false
                 end
-                
-                if ScaleObj then
-                    ScaleObj.Scale = 0.8
-                    TweenService:Create(ScaleObj, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
-                end
             else
-                if ScaleObj then
-                    local tween = TweenService:Create(ScaleObj, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.8})
-                    tween:Play()
-                    tween.Completed:Once(function()
-                        if not Library.NotificationHistoryOpen then
-                            Frame.Visible = false
-                        end
-                    end)
-                else
-                    Frame.Visible = false
-                end
+                Frame.Visible = false
             end
         end
     end
