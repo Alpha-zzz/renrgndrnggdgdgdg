@@ -199,15 +199,6 @@ local Library = {
     --// Notification History (built-in) \\--
     NotificationHistory = {},
     NotificationHistoryLimit = 30,
-    NotificationIdCounter = 0,
-    NotificationCategories = {
-        ["General"] = { Name = "General", Limit = 30 }
-    },
-    NotificationHistoryByCategory = {
-        ["General"] = {}
-    },
-    NotificationHistoryCurrentCategory = "All",
-    NotificationCategoryTabs = nil,
     NotificationHistoryKeybind = Enum.KeyCode.RightAlt,
     NotificationHistoryFrame = nil,
     NotificationHistoryContainer = nil,
@@ -224,6 +215,12 @@ local Library = {
         Success = Color3.fromRGB( 96, 216, 118),
         Info    = Color3.fromRGB( 96, 165, 255),
     },
+
+    --// Notification Categories \\--
+    -- { ["CatName"] = { MaxCount=30, History={}, TabButton=nil } }
+    NotificationCategories = {},
+    ActiveHistoryCategory = "All", -- 現在表示中のタブ名
+    NotificationCategoryTabBar = nil, -- タブバーのFrame
 
     FuzzySearch = true,
     SearchValues = true,
@@ -6097,150 +6094,100 @@ function Library:SetNotifySide(Side: string)
         NotificationArea.Position = UDim2.new(1, -6, 0, 6)
         NotificationList.HorizontalAlignment = Enum.HorizontalAlignment.Right
     end
-function Library:RegisterNotificationCategory(CategoryName, Limit)
-    Library.NotificationCategories[CategoryName] = { Name = CategoryName, Limit = Limit or 30 }
-    if not Library.NotificationHistoryByCategory[CategoryName] then
-        Library.NotificationHistoryByCategory[CategoryName] = {}
-    end
-    if Library.UpdateNotificationHistoryTabs then
-        Library:UpdateNotificationHistoryTabs()
-    end
 end
 
-function Library:UpdateNotificationHistoryUI()
-    if not Library.NotificationHistoryContainer then return end
+--// Notification Category System \\--
 
-    -- Clear existing items
-    for _, child in ipairs(Library.NotificationHistoryContainer:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
+-- カテゴリーを登録する（事前登録しなくても Notify 時に自動登録される）
+function Library:RegisterNotifyCategory(Name, Options)
+    if Library.NotificationCategories[Name] then
+        return -- すでに存在する場合はスキップ
     end
+    Options = Options or {}
+    Library.NotificationCategories[Name] = {
+        MaxCount = Options.MaxCount or 30,
+        History  = {},
+        TabButton = nil,
+    }
+    -- 履歴ウィンドウが既に存在する場合はタブを即追加
+    Library:_AddCategoryTab(Name)
+end
 
-    -- Gather entries
-    local entriesToDisplay = {}
-    if Library.NotificationHistoryCurrentCategory == "All" then
-        for _, categoryEntries in pairs(Library.NotificationHistoryByCategory) do
-            for _, entry in ipairs(categoryEntries) do
-                table.insert(entriesToDisplay, entry)
-            end
-        end
-        -- Sort by Id descending (newest first)
-        table.sort(entriesToDisplay, function(a, b)
-            return a.Id > b.Id
-        end)
-    else
-        local categoryEntries = Library.NotificationHistoryByCategory[Library.NotificationHistoryCurrentCategory]
-        if categoryEntries then
-            for _, entry in ipairs(categoryEntries) do
-                table.insert(entriesToDisplay, entry)
-            end
-            -- Already sorted newest first by table.insert(..., 1, ...) in Notify
-        end
-    end
+-- 内部関数: カテゴリータブボタンを追加
+function Library:_AddCategoryTab(Name)
+    local TabBar = Library.NotificationCategoryTabBar
+    if not TabBar then return end
+    local Cat = Library.NotificationCategories[Name]
+    if not Cat then return end
+    if Cat.TabButton then return end -- すでにある
 
-    -- Filter by search text
-    local Filter = Library.NotificationHistorySearchText or ""
-    
-    local LayoutOrderCounter = 1
+    local Btn = New("TextButton", {
+        BackgroundColor3 = "MainColor",
+        AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.fromOffset(0, 22),
+        Text = Name,
+        TextColor3 = "FontColor",
+        TextTransparency = 0.4,
+        TextSize = 12,
+        Font = Enum.Font.Gotham,
+        Parent = TabBar,
+    })
+    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 5), Parent = Btn }))
+    New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = Btn })
 
-    for _, HistoryEntry in ipairs(entriesToDisplay) do
-        local MatchContent = ((HistoryEntry.Title or "") .. " " .. (HistoryEntry.Description or "")):lower()
-        if Filter == "" or MatchContent:match(Filter) then
-            local HistoryFrame = New("Frame", {
-                BackgroundColor3 = "MainColor",
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Size = UDim2.new(1, 0, 0, 0),
-                LayoutOrder = LayoutOrderCounter,
-                Parent = Library.NotificationHistoryContainer,
-            })
-            LayoutOrderCounter = LayoutOrderCounter + 1
-            
-            table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
-            New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
-            New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
-            New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
+    Cat.TabButton = Btn
 
-            local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
-            
-            local TitleLbl = New("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, -40, 1, 0),
-                Text = HistoryEntry.Title,
-                TextColor3 = HistoryEntry.Color,
-                TextSize = 14,
-                Font = Enum.Font.GothamBold,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = TopBar,
-            })
-            if not Library.NotificationTypeColors[HistoryEntry.Type] then
-                Library.Registry[TitleLbl] = { TextColor3 = "AccentColor" }
-            end
-            
-            New("TextLabel", {
-                BackgroundTransparency = 1,
-                Position = UDim2.new(1, -40, 0, 0),
-                Size = UDim2.new(0, 40, 1, 0),
-                Text = HistoryEntry.Time,
-                TextColor3 = "FontColor",
-                TextTransparency = 0.5,
-                TextSize = 12,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                Parent = TopBar,
-            })
+    Btn.MouseButton1Click:Connect(function()
+        Library:_SwitchHistoryTab(Name)
+    end)
+end
 
-            New("TextLabel", {
-                Name = "Content",
-                BackgroundTransparency = 1,
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Size = UDim2.new(1, 0, 0, 0),
-                Text = HistoryEntry.Description,
-                TextColor3 = "FontColor",
-                TextSize = 13,
-                TextWrapped = true,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = HistoryFrame,
-            })
+-- 内部関数: タブを切り替えて表示をフィルタリング
+function Library:_SwitchHistoryTab(CategoryName)
+    Library.ActiveHistoryCategory = CategoryName
+    local Container = Library.NotificationHistoryContainer
+    if not Container then return end
 
-            local BottomBar = New("Frame", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 14),
-                Parent = HistoryFrame
-            })
-            
-            local CopyBtn = New("TextButton", {
-                BackgroundTransparency = 1,
-                AnchorPoint = Vector2.new(1, 0),
-                Position = UDim2.new(1, 0, 0, 0),
-                Size = UDim2.fromOffset(50, 14),
-                Text = "Copy",
-                TextColor3 = "FontColor",
-                TextTransparency = 0.5,
-                TextSize = 11,
-                Font = Enum.Font.Gotham,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                Parent = BottomBar
-            })
-            local copyTimerId = 0
-            CopyBtn.MouseButton1Click:Connect(function()
-                if setclipboard then
-                    local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
-                    setclipboard(copyText)
-                    
-                    CopyBtn.Text = "Copied!"
-                    CopyBtn.TextColor3 = Library.Scheme.AccentColor or Color3.fromRGB(255, 255, 255)
-                    CopyBtn.TextTransparency = 0
-                    copyTimerId = copyTimerId + 1
-                    local currentId = copyTimerId
-                    task.delay(2, function()
-                        if copyTimerId == currentId then
-                            CopyBtn.Text = "Copy"
-                            CopyBtn.TextColor3 = Library.Scheme.FontColor or Color3.fromRGB(255, 255, 255)
-                            CopyBtn.TextTransparency = 0.5
-                        end
-                    end)
+    -- タブボタンのアクティブ状態を更新
+    local TabBar = Library.NotificationCategoryTabBar
+    if TabBar then
+        for _, Btn in TabBar:GetChildren() do
+            if Btn:IsA("TextButton") then
+                if Btn.Text == CategoryName or (CategoryName == "All" and Btn.Text == "全体") then
+                    Btn.TextTransparency = 0
+                    Btn.BackgroundColor3 = Library.Scheme.AccentColor or Color3.fromRGB(100, 160, 255)
+                    Library.Registry[Btn] = { BackgroundColor3 = "AccentColor" }
+                else
+                    Btn.TextTransparency = 0.4
+                    Btn.BackgroundColor3 = Library.Scheme.MainColor
+                    Library.Registry[Btn] = { BackgroundColor3 = "MainColor" }
                 end
-            end)
+            end
+        end
+    end
+
+    -- 各通知フレームの表示/非表示を切り替え
+    local SearchFilter = (Library.NotificationHistorySearchBox and Library.NotificationHistorySearchBox.Text:lower()) or ""
+    for _, Child in Container:GetChildren() do
+        if Child:IsA("Frame") then
+            if CategoryName == "All" then
+                -- 全体表示: 検索フィルターのみ適用
+                local ContentLabel = Child:FindFirstChild("Content")
+                if ContentLabel then
+                    Child.Visible = SearchFilter == "" or ContentLabel.Text:lower():match(SearchFilter) ~= nil
+                else
+                    Child.Visible = true
+                end
+            else
+                -- カテゴリー表示: カテゴリータグが一致するものだけ
+                local catTag = Child:GetAttribute("Category")
+                local show = (catTag == CategoryName)
+                if show and SearchFilter ~= "" then
+                    local ContentLabel = Child:FindFirstChild("Content")
+                    show = ContentLabel and ContentLabel.Text:lower():match(SearchFilter) ~= nil
+                end
+                Child.Visible = show
+            end
         end
     end
 end
@@ -6278,31 +6225,35 @@ function Library:Notify(...)
         end
     end
 
-    local CategoryName = Data.Category or "General"
-    if not Library.NotificationCategories[CategoryName] then
-        Library.NotificationCategories[CategoryName] = { Name = CategoryName, Limit = 30 }
-        Library.NotificationHistoryByCategory[CategoryName] = {}
-        if Library.UpdateNotificationHistoryTabs then
-            Library:UpdateNotificationHistoryTabs()
-        end
+    -- Add to Notification History
+    local CategoryName = (typeof(Info) == "table" and Info.Category) or nil
+    local HistoryEntry = {
+        Title       = Data.Title or "Notification",
+        Description = Data.Description,
+        Type        = Data.Type,
+        Category    = CategoryName,
+        Time        = os.date("%H:%M"),
+        Color       = TypeColor or Library.Scheme.AccentColor,
+    }
+
+    -- グローバル履歴（全体）に追加
+    table.insert(Library.NotificationHistory, 1, HistoryEntry)
+    if #Library.NotificationHistory > Library.NotificationHistoryLimit then
+        table.remove(Library.NotificationHistory, #Library.NotificationHistory)
     end
 
-    Library.NotificationIdCounter = Library.NotificationIdCounter + 1
-
-    -- Add to Notification History
-    local HistoryEntry = {
-        Id = Library.NotificationIdCounter,
-        Title = Data.Title or "Notification",
-        Description = Data.Description,
-        Type = Data.Type,
-        Category = CategoryName,
-        Time = os.date("%H:%M"),
-        Color = TypeColor or Library.Scheme.AccentColor
-    }
-    
-    table.insert(Library.NotificationHistoryByCategory[CategoryName], 1, HistoryEntry)
-    if #Library.NotificationHistoryByCategory[CategoryName] > Library.NotificationCategories[CategoryName].Limit then
-        table.remove(Library.NotificationHistoryByCategory[CategoryName], #Library.NotificationHistoryByCategory[CategoryName])
+    -- カテゴリー別履歴に追加
+    if CategoryName then
+        -- カテゴリーが未登録なら自動登録（MaxCount=30）
+        if not Library.NotificationCategories[CategoryName] then
+            Library:RegisterNotifyCategory(CategoryName, { MaxCount = 30 })
+        end
+        local Cat = Library.NotificationCategories[CategoryName]
+        table.insert(Cat.History, 1, HistoryEntry)
+        -- カテゴリーの上限を超えたら古いものを削除
+        if #Cat.History > Cat.MaxCount then
+            table.remove(Cat.History, #Cat.History)
+        end
     end
 
     -- Update Badge
@@ -6319,8 +6270,148 @@ function Library:Notify(...)
         end
     end
 
-    if Library.UpdateNotificationHistoryUI then
-        Library:UpdateNotificationHistoryUI()
+    -- Build History UI element if container exists
+    if Library.NotificationHistoryContainer then
+        local Container = Library.NotificationHistoryContainer
+
+        local HistoryFrame = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            LayoutOrder = 1,
+            Parent = Container,
+        })
+        -- カテゴリータグをAttributeとして保存（タブフィルタリングに使用）
+        HistoryFrame:SetAttribute("Category", CategoryName or "")
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
+        New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
+        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
+
+        local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
+        
+        local TitleLbl = New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, -40, 1, 0),
+            Text = HistoryEntry.Title,
+            TextColor3 = HistoryEntry.Color,
+            TextSize = 14,
+            Font = Enum.Font.GothamBold,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = TopBar,
+        })
+        if not TypeColor then
+            Library.Registry[TitleLbl] = { TextColor3 = "AccentColor" }
+        end
+        
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -40, 0, 0),
+            Size = UDim2.new(0, 40, 1, 0),
+            Text = HistoryEntry.Time,
+            TextColor3 = "FontColor",
+            TextTransparency = 0.5,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = TopBar,
+        })
+
+        New("TextLabel", {
+            Name = "Content",
+            BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1, 0, 0, 0),
+            Text = HistoryEntry.Description,
+            TextColor3 = "FontColor",
+            TextSize = 13,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = HistoryFrame,
+        })
+
+        -- Copy Button Container
+        local BottomBar = New("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 14),
+            Parent = HistoryFrame
+        })
+        local CopyBtn = New("TextButton", {
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, 0, 0, 0),
+            Size = UDim2.fromOffset(50, 14),
+            Text = "Copy",
+            TextColor3 = "FontColor",
+            TextTransparency = 0.5,
+            TextSize = 11,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = BottomBar
+        })
+        local copyTimerId = 0
+        CopyBtn.MouseButton1Click:Connect(function()
+            if setclipboard then
+                local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
+                setclipboard(copyText)
+                
+                CopyBtn.Text = "Copied!"
+                CopyBtn.TextColor3 = Library.Scheme.AccentColor or Color3.fromRGB(255, 255, 255)
+                CopyBtn.TextTransparency = 0
+                copyTimerId = copyTimerId + 1
+                local currentId = copyTimerId
+                task.delay(2, function()
+                    if copyTimerId == currentId then
+                        CopyBtn.Text = "Copy"
+                        CopyBtn.TextColor3 = Library.Scheme.FontColor or Color3.fromRGB(255, 255, 255)
+                        CopyBtn.TextTransparency = 0.5
+                    end
+                end)
+            end
+        end)
+
+        -- 新しく追加した通知を常に一番上に (LayoutOrder で順序制御)
+        local Order = 1
+        for _, Child in Container:GetChildren() do
+            if Child:IsA("Frame") then
+                Child.LayoutOrder = Order
+                Order += 1
+            end
+        end
+        HistoryFrame.LayoutOrder = 0
+
+        -- カテゴリーの上限を超えた古いUIを削除
+        local CatCount = 0
+        local AllCount = 0
+        local MaxForCategory = CategoryName and Library.NotificationCategories[CategoryName] and Library.NotificationCategories[CategoryName].MaxCount or Library.NotificationHistoryLimit
+        for _, Child in ipairs(Container:GetChildren()) do
+            if Child:IsA("Frame") then
+                AllCount += 1
+                local tag = Child:GetAttribute("Category")
+                if (CategoryName and tag == CategoryName) or (not CategoryName and tag == "") then
+                    CatCount += 1
+                    if CatCount > MaxForCategory then
+                        Child:Destroy()
+                    end
+                end
+            end
+        end
+
+        -- 現在のタブに合わせて表示/非表示を適用
+        local activeTab = Library.ActiveHistoryCategory
+        if activeTab ~= "All" then
+            HistoryFrame.Visible = (HistoryFrame:GetAttribute("Category") == activeTab)
+        else
+            HistoryFrame.Visible = true
+        end
+
+        -- 検索フィルターも適用
+        local SearchFilter = Library.NotificationHistorySearchText
+        if SearchFilter ~= "" then
+            local ContentLabel = HistoryFrame:FindFirstChild("Content")
+            if ContentLabel and not ContentLabel.Text:lower():match(SearchFilter) then
+                HistoryFrame.Visible = false
+            end
+        end
     end
 
 
@@ -9157,10 +9248,45 @@ function Library:CreateWindow(WindowInfo)
         })
         New("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = TitleLabel })
 
+        -- Category Tab Bar (タイトルの下)
+        local TabBar = New("ScrollingFrame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 35),
+            Size = UDim2.new(1, 0, 0, 30),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.X,
+            ScrollBarThickness = 0,
+            ScrollingDirection = Enum.ScrollingDirection.X,
+            Parent = Frame,
+        })
+        New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), VerticalAlignment = Enum.VerticalAlignment.Center, Parent = TabBar })
+        New("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), Parent = TabBar })
+        Library.NotificationCategoryTabBar = TabBar
+
+        -- 「全体」タブ（常に最初）
+        local AllTabBtn = New("TextButton", {
+            BackgroundColor3 = "AccentColor",
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.fromOffset(0, 22),
+            Text = "全体",
+            TextColor3 = Color3.new(1, 1, 1),
+            TextTransparency = 0,
+            TextSize = 12,
+            Font = Enum.Font.Gotham,
+            Parent = TabBar,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 5), Parent = AllTabBtn }))
+        New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = AllTabBtn })
+        Library.Registry[AllTabBtn] = { BackgroundColor3 = "AccentColor" }
+
+        AllTabBtn.MouseButton1Click:Connect(function()
+            Library:_SwitchHistoryTab("All")
+        end)
+
         -- Add Search Box for Notification History at the top
         local HistorySearchContainer = New("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 35),
+            Position = UDim2.fromOffset(0, 66),  -- タブバー分下げる
             Size = UDim2.new(1, 0, 0, 32),
             Parent = Frame,
         })
@@ -9187,26 +9313,10 @@ function Library:CreateWindow(WindowInfo)
         })
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = ClearBtn }))
         New("UIStroke", { Color = "OutlineColor", Parent = ClearBtn })
-        
-        -- Add Category Tabs Container
-        local CategoryTabsContainer = New("ScrollingFrame", {
-            BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 67),
-            Size = UDim2.new(1, 0, 0, 24),
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.X,
-            ScrollBarThickness = 0,
-            ScrollingDirection = Enum.ScrollingDirection.X,
-            Parent = Frame,
-        })
-        New("UIListLayout", { Padding = UDim.new(0, 4), FillDirection = Enum.FillDirection.Horizontal, Parent = CategoryTabsContainer })
-        New("UIPadding", { PaddingBottom = UDim.new(0, 2), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 2), Parent = CategoryTabsContainer })
-        Library.NotificationCategoryTabs = CategoryTabsContainer
-
         local Container = New("ScrollingFrame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 93), -- Moved down to accommodate category tabs
-            Size = UDim2.new(1, 0, 1, -93),
+            Position = UDim2.fromOffset(0, 99), -- タイトル34 + タブバー30 + 検索32 = 96 + 余白3
+            Size = UDim2.new(1, 0, 1, -99),
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollBarThickness = 2,
@@ -9216,23 +9326,38 @@ function Library:CreateWindow(WindowInfo)
         New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 0), Parent = Container })
         
         ClearBtn.MouseButton1Click:Connect(function()
-            if Library.NotificationHistoryCurrentCategory == "All" then
-                -- Clear all categories
-                for catName, _ in pairs(Library.NotificationHistoryByCategory) do
-                    Library.NotificationHistoryByCategory[catName] = {}
+            -- 現在のタブに応じて削除対象を切り替え
+            local activeTab = Library.ActiveHistoryCategory
+            for _, Child in Container:GetChildren() do
+                if Child:IsA("Frame") then
+                    if activeTab == "All" then
+                        Child:Destroy() -- 全体タブ → 全削除
+                    else
+                        if Child:GetAttribute("Category") == activeTab then
+                            Child:Destroy() -- カテゴリータブ → そのカテゴリーのみ削除
+                        end
+                    end
+                end
+            end
+            -- データも削除
+            if activeTab == "All" then
+                table.clear(Library.NotificationHistory)
+                for _, Cat in Library.NotificationCategories do
+                    table.clear(Cat.History)
+                end
+                Library.NotificationUnreadCount = 0
+                if Library.NotificationBadge then
+                    Library.NotificationBadge.Visible = false
                 end
             else
-                -- Clear only current category
-                Library.NotificationHistoryByCategory[Library.NotificationHistoryCurrentCategory] = {}
-            end
-            
-            Library.NotificationUnreadCount = 0
-            if Library.NotificationBadge then
-                Library.NotificationBadge.Visible = false
-            end
-            
-            if Library.UpdateNotificationHistoryUI then
-                Library:UpdateNotificationHistoryUI()
+                local Cat = Library.NotificationCategories[activeTab]
+                if Cat then table.clear(Cat.History) end
+                -- グローバル履歴からもそのカテゴリーを除去
+                for i = #Library.NotificationHistory, 1, -1 do
+                    if Library.NotificationHistory[i].Category == activeTab then
+                        table.remove(Library.NotificationHistory, i)
+                    end
+                end
             end
         end)
         
@@ -9240,49 +9365,21 @@ function Library:CreateWindow(WindowInfo)
         Library.NotificationHistoryContainer = Container
 
         HistorySearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-            Library.NotificationHistorySearchText = HistorySearchBox.Text:lower()
-            if Library.UpdateNotificationHistoryUI then
-                Library:UpdateNotificationHistoryUI()
-            end
-        end)
-        
-        function Library:UpdateNotificationHistoryTabs()
-            if not Library.NotificationCategoryTabs then return end
-            
-            for _, child in ipairs(Library.NotificationCategoryTabs:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child:Destroy()
+            local Filter = HistorySearchBox.Text:lower()
+            Library.NotificationHistorySearchText = Filter
+            for _, Child in Container:GetChildren() do
+                if Child:IsA("Frame") and Child ~= HistorySearchContainer then
+                    local ContentLabel = Child:FindFirstChild("Content")
+                    if ContentLabel and ContentLabel:IsA("TextLabel") then
+                        if Filter == "" or ContentLabel.Text:lower():match(Filter) then
+                            Child.Visible = true
+                        else
+                            Child.Visible = false
+                        end
+                    end
                 end
             end
-            
-            local cats = { "All" }
-            for catName, _ in pairs(Library.NotificationCategories) do
-                table.insert(cats, catName)
-            end
-            
-            for _, catName in ipairs(cats) do
-                local TabBtn = New("TextButton", {
-                    BackgroundColor3 = Library.NotificationHistoryCurrentCategory == catName and "AccentColor" or "MainColor",
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    Size = UDim2.fromOffset(0, 20),
-                    Text = " " .. catName .. " ",
-                    TextColor3 = Library.NotificationHistoryCurrentCategory == catName and Color3.new(1,1,1) or "FontColor",
-                    TextSize = 12,
-                    Font = Enum.Font.Gotham,
-                    Parent = Library.NotificationCategoryTabs,
-                })
-                table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = TabBtn }))
-                New("UIStroke", { Color = "OutlineColor", Parent = TabBtn })
-                
-                TabBtn.MouseButton1Click:Connect(function()
-                    Library.NotificationHistoryCurrentCategory = catName
-                    Library:UpdateNotificationHistoryTabs()
-                    Library:UpdateNotificationHistoryUI()
-                end)
-            end
-        end
-        
-        Library:UpdateNotificationHistoryTabs()
+        end)
 
         Library.NotificationHistorySearchBox = HistorySearchBox
     end
