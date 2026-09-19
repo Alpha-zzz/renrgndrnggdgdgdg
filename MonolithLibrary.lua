@@ -9155,6 +9155,7 @@ function Library:CreateWindow(WindowInfo)
             if Library.NotificationBadge then
                 Library.NotificationBadge.Visible = false
             end
+        end)
         
         Library.NotificationHistoryFrame = Frame
         Library.NotificationHistoryContainer = Container
