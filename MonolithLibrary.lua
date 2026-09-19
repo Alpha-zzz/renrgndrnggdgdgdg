@@ -6384,19 +6384,26 @@ function Library:Notify(...)
         end
         HistoryFrame.LayoutOrder = 0
 
-        -- カテゴリーの上限を超えた古いUIを削除
-        local CatCount = 0
-        local AllCount = 0
-        local MaxForCategory = CategoryName and Library.NotificationCategories[CategoryName] and Library.NotificationCategories[CategoryName].MaxCount or Library.NotificationHistoryLimit
+        -- UIフレームを最新（LayoutOrderが小さい）順に並べる
+        local frames = {}
         for _, Child in ipairs(Container:GetChildren()) do
             if Child:IsA("Frame") then
-                AllCount += 1
-                local tag = Child:GetAttribute("Category")
-                if (CategoryName and tag == CategoryName) or (not CategoryName and tag == "") then
-                    CatCount += 1
-                    if CatCount > MaxForCategory then
-                        Child:Destroy()
-                    end
+                table.insert(frames, Child)
+            end
+        end
+        table.sort(frames, function(a, b)
+            return a.LayoutOrder < b.LayoutOrder
+        end)
+
+        -- 最新のものから数えて、上限を超えた一番古いUIを削除
+        local CatCount = 0
+        local MaxForCategory = CategoryName and Library.NotificationCategories[CategoryName] and Library.NotificationCategories[CategoryName].MaxCount or Library.NotificationHistoryLimit
+        for _, Child in ipairs(frames) do
+            local tag = Child:GetAttribute("Category")
+            if (CategoryName and tag == CategoryName) or (not CategoryName and tag == "") then
+                CatCount += 1
+                if CatCount > MaxForCategory then
+                    Child:Destroy()
                 end
             end
         end
