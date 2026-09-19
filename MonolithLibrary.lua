@@ -6167,6 +6167,7 @@ function Library:Notify(...)
         Data.Icon = Info.Icon
         Data.BigIcon = Info.BigIcon
         Data.IconColor = Info.IconColor
+        Data.Type = Info.Type
     else
         Data.Description = tostring(Info)
         Data.Time = select(2, ...) or 5
@@ -6436,6 +6437,38 @@ function Library:Notify(...)
 
     Library.Notifications[FakeBackground] = Data
 
+    if not Data.Destroyed then
+        if not Library.NotificationHistory then Library.NotificationHistory = {} end
+        table.insert(Library.NotificationHistory, 1, {
+            Title = Data.Title,
+            Description = Data.Description,
+            Type = Data.Type,
+            Time = os.time(),
+        })
+        if #Library.NotificationHistory > (Library.NotificationHistoryLimit or 30) then
+            table.remove(Library.NotificationHistory)
+        end
+        
+        if Library.NotificationBadge and Library.NotificationBadgeText and not Library.NotificationHistoryOpen then
+            Library.NotificationUnreadCount = (Library.NotificationUnreadCount or 0) + 1
+            Library.NotificationBadgeText.Text = tostring(Library.NotificationUnreadCount)
+            Library.NotificationBadge.Visible = true
+            
+            TweenService:Create(Library.NotificationBadge, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.fromOffset(18, 18)
+            }):Play()
+            task.delay(0.15, function()
+                TweenService:Create(Library.NotificationBadge, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    Size = UDim2.fromOffset(14, 14)
+                }):Play()
+            end)
+        end
+        
+        if Library.RefreshNotificationHistory then
+            Library:RefreshNotificationHistory()
+        end
+    end
+
     FakeBackground.Visible = true
     TweenService:Create(Holder, Library.NotifyTweenInfo, {
         Position = UDim2.fromOffset(0, 0),
@@ -6607,6 +6640,168 @@ function timeAgoString(diff)
     if diff < 3600 then return math.floor(diff/60) .. "m ago" end
     if diff < 86400 then return math.floor(diff/3600) .. "h ago" end
     return math.floor(diff/86400) .. "d ago"
+end
+
+function Library:ToggleNotificationHistory()
+    if not Library.NotificationHistoryFrame then
+        Library:BuildNotificationHistory()
+    end
+    
+    Library.NotificationHistoryOpen = not Library.NotificationHistoryOpen
+    Library.NotificationHistoryFrame.Visible = Library.NotificationHistoryOpen
+    
+    if Library.NotificationHistoryOpen then
+        Library:RefreshNotificationHistory()
+        Library.NotificationUnreadCount = 0
+        if Library.NotificationBadge then
+            Library.NotificationBadge.Visible = false
+        end
+    end
+end
+
+function Library:BuildNotificationHistory()
+    if Library.NotificationHistoryFrame then return end
+    
+    local Frame = New("Frame", {
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = "BackgroundColor",
+        Position = UDim2.new(1, -6, 0, 48),
+        Size = UDim2.fromOffset(300, 400),
+        ZIndex = 50,
+        Visible = false,
+        Parent = Library.ScreenGui,
+    })
+    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Frame }))
+    Library:AddOutline(Frame)
+    table.insert(Library.Scales, New("UIScale", { Parent = Frame }))
+    
+    local Title = New("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(12, 12),
+        Size = UDim2.new(1, -24, 0, 20),
+        Text = "Notification History",
+        TextSize = 16,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = "FontColor",
+        ZIndex = 51,
+        Parent = Frame,
+    })
+    
+    local ClearBtn = New("TextButton", {
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = "MainColor",
+        Position = UDim2.new(1, -12, 0, 10),
+        Size = UDim2.fromOffset(60, 24),
+        Text = "Clear",
+        TextSize = 13,
+        TextColor3 = "FontColor",
+        ZIndex = 51,
+        Parent = Frame,
+    })
+    table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = ClearBtn }))
+    Library:AddOutline(ClearBtn)
+    
+    ClearBtn.MouseButton1Click:Connect(function()
+        Library.NotificationHistory = {}
+        if Library.RefreshNotificationHistory then
+            Library:RefreshNotificationHistory()
+        end
+    end)
+    
+    local Container = New("ScrollingFrame", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(12, 44),
+        Size = UDim2.new(1, -24, 1, -56),
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = "OutlineColor",
+        ZIndex = 51,
+        Parent = Frame,
+    })
+    New("UIListLayout", { Padding = UDim.new(0, 8), Parent = Container })
+    
+    Library.NotificationHistoryFrame = Frame
+    Library.NotificationHistoryContainer = Container
+end
+
+local function timeAgoString(diff)
+    if diff < 60 then return "Just now" end
+    if diff < 3600 then return math.floor(diff/60) .. "m ago" end
+    if diff < 86400 then return math.floor(diff/3600) .. "h ago" end
+    return math.floor(diff/86400) .. "d ago"
+end
+
+function Library:RefreshNotificationHistory()
+    if not Library.NotificationHistoryContainer then return end
+    
+    for _, child in ipairs(Library.NotificationHistoryContainer:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    for _, notif in ipairs(Library.NotificationHistory) do
+        local Card = New("Frame", {
+            BackgroundColor3 = "MainColor",
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            ZIndex = 52,
+            Parent = Library.NotificationHistoryContainer,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, Library.CornerRadius), Parent = Card }))
+        Library:AddOutline(Card)
+        New("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = Card })
+        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = Card })
+        
+        local AccentColor = "FontColor"
+        if notif.Type and Library.NotificationTypeColors and Library.NotificationTypeColors[notif.Type] then
+            AccentColor = Library.NotificationTypeColors[notif.Type]
+        end
+        
+        if notif.Title then
+            New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 16),
+                Text = notif.Title,
+                TextSize = 14,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextColor3 = AccentColor,
+                ZIndex = 53,
+                Parent = Card,
+            })
+        end
+        
+        if notif.Description then
+            New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Text = notif.Description,
+                TextSize = 13,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextColor3 = "FontColor",
+                ZIndex = 53,
+                Parent = Card,
+            })
+        end
+        
+        local TimeAgo = os.time() - (notif.Time or os.time())
+        local TimeStr = timeAgoString(TimeAgo)
+        
+        New("TextLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 12),
+            Text = TimeStr,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextColor3 = "FontColor",
+            TextTransparency = 0.5,
+            ZIndex = 53,
+            Parent = Card,
+        })
+    end
 end
 
 function Library:ToggleNotificationHistory()
@@ -9731,6 +9926,8 @@ Library:GiveSignal(Teams.ChildRemoved:Connect(OnTeamChange))
 
 getgenv().Library = Library
 return Library
+
+
 
 
 
