@@ -6421,23 +6421,53 @@ function Library:Notify(...)
 
                 task.spawn(function()
                     local dummy = game.Players:CreateHumanoidModelFromUserId(bd.UserId)
+                    local hrp = dummy:FindFirstChild("HumanoidRootPart")
+                    if hrp then dummy.PrimaryPart = hrp end
+                    
+                    dummy:PivotTo(cf)
                     dummy.Parent = folder
-                    dummy:SetPrimaryPartCFrame(cf)
                     for _, v in ipairs(dummy:GetDescendants()) do
                         if v:IsA("BasePart") then v.Anchored = true v.CanCollide = false end
                     end
                 end)
 
                 local bhPos = bd.BlackHolePos
-                local bh = Instance.new("Part")
-                bh.Shape = Enum.PartType.Ball
-                bh.Size = Vector3.new(3,3,3)
-                bh.Color = Color3.fromRGB(0,0,0)
-                bh.Material = Enum.Material.Neon
-                bh.Anchored = true
-                bh.CanCollide = false
-                bh.Position = Vector3.new(bhPos.X, bhPos.Y, bhPos.Z)
+                local rs = game:GetService("ReplicatedStorage")
+                local template = rs:FindFirstChild("BlackHoleKick") or rs:FindFirstChild("BlackHoleDetected")
+                local bh
+                if template then
+                    bh = template:Clone()
+                else
+                    bh = Instance.new("Part")
+                    bh.Shape = Enum.PartType.Ball
+                    bh.Size = Vector3.new(8,8,8)
+                    bh.Color = Color3.fromRGB(0,0,0)
+                    bh.Material = Enum.Material.Neon
+                end
+
+                if bh:IsA("Model") then
+                    bh:PivotTo(CFrame.new(bhPos.X, bhPos.Y, bhPos.Z))
+                else
+                    bh.Position = Vector3.new(bhPos.X, bhPos.Y, bhPos.Z)
+                end
                 bh.Parent = folder
+
+                task.spawn(function()
+                    task.wait(0.2)
+                    if bh and bh.Parent then
+                        for _, v in ipairs(bh:GetDescendants()) do
+                            if v:IsA("Script") or v:IsA("LocalScript") then
+                                v.Disabled = true
+                            elseif v:IsA("ParticleEmitter") then
+                                v.Enabled = false
+                            end
+                            if v:IsA("BasePart") then
+                                v.Anchored = true
+                            end
+                        end
+                        if bh:IsA("BasePart") then bh.Anchored = true end
+                    end
+                end)
 
                 Library:Notify({Title="Before", Description="Spawned Diorama for "..bd.PlayerName, Time=3})
             end)
