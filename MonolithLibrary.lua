@@ -1,9 +1,9 @@
 --[[
-  ███╗   ███╗ ██████╗ ███╗   ██╗ ██████╗ ██╗     ██╗████████╗██╗  ██╗
-  ████╗ ████║██╔═══██╗████╗  ██║██╔═══██╗██║     ██║╚══██╔══╝██║  ██║
-  ██╔████╔██║██║   ██║██╔██╗ ██║██║   ██║██║     ██║   ██║   ███████║
-  ██║╚██╔╝██║██║   ██║██║╚██╗██║██║   ██║██║     ██║   ██║   ██╔══██║
-  ██║ ╚═╝ ██║╚██████╔╝██║ ╚████║╚██████╔╝███████╗██║   ██║   ██║  ██║
+  ███╗   ███╗ ██████╁E███╗   ██╁E██████╁E██╁E    ██╗████████╗██╁E ██╁E
+  ████╁E████║██╔═══██╗████╁E ██║██╔═══██╗██╁E    ██║╚══██╔══╝██╁E ██╁E
+  ██╔████╔██║██║   ██║██╔██╁E██║██║   ██║██║     ██╁E  ██╁E  ███████║
+  ██║╚██╔╝██║██║   ██║██║╚██╗██║██║   ██║██║     ██╁E  ██╁E  ██╔══██║
+  ██╁E╚═╁E██║╚██████╔╝██╁E╚████║╚██████╔╝███████╗██║   ██╁E  ██╁E ██╁E
   MONOLITH GUI Library  |  Monochrome Edition  |  based on Obsidian
   White · Gray · Black  |  Gotham Font  |  800x540  |  6px Corners
 --]]
@@ -218,7 +218,7 @@ local Library = {
 
     --// Notification Categories \\--
     -- { ["CatName"] = { MaxCount=30, History={}, TabButton=nil } }
-    NotificationCategories = {},
+    NotificationCategories = {}, NotificationCategoryOrder = {},
     ActiveHistoryCategory = "All", -- 現在表示中のタブ名
     NotificationCategoryTabBar = nil, -- タブバーのFrame
 
@@ -1172,7 +1172,7 @@ function Library:GetCustomIcon(IconName: string): any
     end
 
     if tonumber(IconName) then
-        -- Decal等は rbxassetid だと空になることがあるので rbxthumb を使う
+        -- Decal等�E rbxassetid だと空になることがある�Eで rbxthumb を使ぁE
         IconName = string.format("rbxthumb://type=Asset&id=%s&w=150&h=150", tostring(IconName))
     end
 
@@ -6103,22 +6103,22 @@ end
 
 --// Notification Category System \\--
 
--- カテゴリーを登録する（事前登録しなくても Notify 時に自動登録される）
+-- カチE��リーを登録する�E�事前登録しなくてめENotify 時に自動登録される！E
 function Library:RegisterNotifyCategory(Name, Options)
     if Library.NotificationCategories[Name] then
-        return -- すでに存在する場合はスキップ
+        return -- すでに存在する場合�EスキチE�E
     end
     Options = Options or {}
-    Library.NotificationCategories[Name] = {
+    table.insert(Library.NotificationCategoryOrder, Name); Library.NotificationCategories[Name] = {
         MaxCount = Options.MaxCount or 30,
         History  = {},
         TabButton = nil,
     }
-    -- 履歴ウィンドウが既に存在する場合はタブを即追加
+    -- 履歴ウィンドウが既に存在する場合�Eタブを即追加
     Library:_AddCategoryTab(Name)
 end
 
--- 内部関数: カテゴリータブボタンを追加
+-- 冁E��関数: カチE��リータブ�Eタンを追加
 function Library:_AddCategoryTab(Name)
     local TabBar = Library.NotificationCategoryTabBar
     if not TabBar then return end
@@ -6147,13 +6147,13 @@ function Library:_AddCategoryTab(Name)
     end)
 end
 
--- 内部関数: タブを切り替えて表示をフィルタリング
+-- 冁E��関数: タブを刁E��替えて表示をフィルタリング
 function Library:_SwitchHistoryTab(CategoryName)
     Library.ActiveHistoryCategory = CategoryName
     local Container = Library.NotificationHistoryContainer
     if not Container then return end
 
-    -- タブボタンのアクティブ状態を更新
+    -- タブ�EタンのアクチE��ブ状態を更新
     local TabBar = Library.NotificationCategoryTabBar
     if TabBar then
         for _, Btn in TabBar:GetChildren() do
@@ -6171,7 +6171,7 @@ function Library:_SwitchHistoryTab(CategoryName)
         end
     end
 
-    -- 各通知フレームの表示/非表示を切り替え
+    -- 吁E��知フレームの表示/非表示を�Eり替ぁE
     local SearchFilter = (Library.NotificationHistorySearchBox and Library.NotificationHistorySearchBox.Text:lower()) or ""
     for _, Child in Container:GetChildren() do
         if Child:IsA("Frame") then
@@ -6184,7 +6184,7 @@ function Library:_SwitchHistoryTab(CategoryName)
                     Child.Visible = true
                 end
             else
-                -- カテゴリー表示: カテゴリータグが一致するものだけ
+                -- カチE��リー表示: カチE��リータグが一致するも�EだぁE
                 local catTag = Child:GetAttribute("Category")
                 local show = (catTag == CategoryName)
                 if show and SearchFilter ~= "" then
@@ -6244,22 +6244,22 @@ function Library:Notify(...)
             Color       = TypeColor or Library.Scheme.AccentColor,
         }
 
-        -- グローバル履歴（全体）に追加
+        -- グローバル履歴�E��E体）に追加
         table.insert(Library.NotificationHistory, 1, HistoryEntry)
         if #Library.NotificationHistory > Library.NotificationHistoryLimit then
             table.remove(Library.NotificationHistory, #Library.NotificationHistory)
         end
     end
 
-    -- カテゴリー別履歴に追加
+    -- カチE��リー別履歴に追加
     if CategoryName then
-        -- カテゴリーが未登録なら自動登録（MaxCount=30）
+        -- カチE��リーが未登録なら�E動登録�E�EaxCount=30�E�E
         if not Library.NotificationCategories[CategoryName] then
             Library:RegisterNotifyCategory(CategoryName, { MaxCount = 30 })
         end
         local Cat = Library.NotificationCategories[CategoryName]
         table.insert(Cat.History, 1, HistoryEntry)
-        -- カテゴリーの上限を超えたら古いものを削除
+        -- カチE��リーの上限を趁E��たら古ぁE��のを削除
         if #Cat.History > Cat.MaxCount then
             table.remove(Cat.History, #Cat.History)
         end
@@ -6290,7 +6290,7 @@ function Library:Notify(...)
             LayoutOrder = 1,
             Parent = Container,
         })
-        -- カテゴリータグをAttributeとして保存（タブフィルタリングに使用）
+        -- カチE��リータグをAttributeとして保存（タブフィルタリングに使用�E�E
         HistoryFrame:SetAttribute("Category", CategoryName or "")
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
         New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
@@ -6378,7 +6378,7 @@ function Library:Notify(...)
             end
         end)
 
-        -- 新しく追加した通知を一番上に、既存のものは順番を維持して下に押し出す
+        -- 新しく追加した通知を一番上に、既存�Eも�Eは頁E��を維持して下に押し�EぁE
         for _, Child in Container:GetChildren() do
             if Child:IsA("Frame") and Child ~= HistoryFrame then
                 Child.LayoutOrder = Child.LayoutOrder + 1
@@ -6386,7 +6386,7 @@ function Library:Notify(...)
         end
         HistoryFrame.LayoutOrder = 0
 
-        -- UIフレームを最新（LayoutOrderが小さい）順に並べる
+        -- UIフレームを最新�E�EayoutOrderが小さぁE��頁E��並べめE
         local frames = {}
         for _, Child in ipairs(Container:GetChildren()) do
             if Child:IsA("Frame") then
@@ -6397,7 +6397,7 @@ function Library:Notify(...)
             return a.LayoutOrder < b.LayoutOrder
         end)
 
-        -- 最新のものから数えて、上限を超えた一番古いUIを削除
+        -- 最新のも�Eから数えて、上限を趁E��た一番古いUIを削除
         local CatCount = 0
         local MaxForCategory = CategoryName and Library.NotificationCategories[CategoryName] and Library.NotificationCategories[CategoryName].MaxCount or Library.NotificationHistoryLimit
         for _, Child in ipairs(frames) do
@@ -6830,7 +6830,7 @@ function Library:CreateWindow(WindowInfo)
             Parent = MainFrame,
         })
 
-        -- 背景は常に用意（後から画像リンクで差し替え可能）
+        -- 背景は常に用意（後から画像リンクで差し替え可能�E�E
         BackgroundImage = New("ImageLabel", {
             Name = "MonolithBackgroundImage",
             Image = WindowInfo.BackgroundImage or "",
@@ -8997,7 +8997,7 @@ function Library:CreateWindow(WindowInfo)
             local ScaleObj = Frame:FindFirstChildOfClass("UIScale")
             
             if ScaleObj then
-                ScaleObj.Scale = 1 -- アニメーションしないのでスケールは常に1
+                ScaleObj.Scale = 1 -- アニメーションしなぁE�Eでスケールは常に1
             end
 
             if Library.NotificationHistoryOpen then
@@ -9032,7 +9032,7 @@ function Library:CreateWindow(WindowInfo)
         MainFrame.Visible = Library.Toggled
 
         if not Library.Toggled then
-            -- GUIを閉じた時は通知履歴も閉じる
+            -- GUIを閉じた時�E通知履歴も閉じる
             Library:ToggleNotificationHistory(false)
         end
 
@@ -9285,7 +9285,7 @@ function Library:CreateWindow(WindowInfo)
         })
         New("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = TitleLabel })
 
-        -- Category Tab Bar (タイトルの下)
+        -- Category Tab Bar (タイトルの丁E
         local TabBar = New("ScrollingFrame", {
             BackgroundTransparency = 1,
             Position = UDim2.fromOffset(0, 35),
@@ -9300,7 +9300,7 @@ function Library:CreateWindow(WindowInfo)
         New("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), Parent = TabBar })
         Library.NotificationCategoryTabBar = TabBar
 
-        -- 「全体」タブ（常に最初）
+        -- 「�E体」タブ（常に最初！E
         local AllTabBtn = New("TextButton", {
             BackgroundColor3 = "AccentColor",
             AutomaticSize = Enum.AutomaticSize.X,
@@ -9320,8 +9320,8 @@ function Library:CreateWindow(WindowInfo)
             Library:_SwitchHistoryTab("All")
         end)
 
-        -- すでに登録済みのカテゴリーがあればタブボタンを生成
-        for CatName, CatData in pairs(Library.NotificationCategories) do
+        -- すでに登録済みのカチE��リーがあれ�Eタブ�Eタンを生戁E
+        for _, CatName in ipairs(Library.NotificationCategoryOrder) do local CatData = Library.NotificationCategories[CatName]
             if not CatData.TabButton then
                 Library:_AddCategoryTab(CatName)
             end
@@ -9330,7 +9330,7 @@ function Library:CreateWindow(WindowInfo)
         -- Add Search Box for Notification History at the top
         local HistorySearchContainer = New("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 66),  -- タブバー分下げる
+            Position = UDim2.fromOffset(0, 66),  -- タブバー刁E��げめE
             Size = UDim2.new(1, 0, 0, 32),
             Parent = Frame,
         })
@@ -9370,20 +9370,20 @@ function Library:CreateWindow(WindowInfo)
         New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 0), Parent = Container })
         
         ClearBtn.MouseButton1Click:Connect(function()
-            -- 現在のタブに応じて削除対象を切り替え
+            -- 現在のタブに応じて削除対象を�Eり替ぁE
             local activeTab = Library.ActiveHistoryCategory
             for _, Child in Container:GetChildren() do
                 if Child:IsA("Frame") then
                     if activeTab == "All" then
-                        Child:Destroy() -- 全体タブ → 全削除
+                        Child:Destroy() -- 全体タチEↁE全削除
                     else
                         if Child:GetAttribute("Category") == activeTab then
-                            Child:Destroy() -- カテゴリータブ → そのカテゴリーのみ削除
+                            Child:Destroy() -- カチE��リータチEↁEそ�EカチE��リーのみ削除
                         end
                     end
                 end
             end
-            -- データも削除
+            -- チE�Eタも削除
             if activeTab == "All" then
                 table.clear(Library.NotificationHistory)
                 for _, Cat in Library.NotificationCategories do
@@ -9396,7 +9396,7 @@ function Library:CreateWindow(WindowInfo)
             else
                 local Cat = Library.NotificationCategories[activeTab]
                 if Cat then table.clear(Cat.History) end
-                -- グローバル履歴からもそのカテゴリーを除去
+                -- グローバル履歴からもそのカチE��リーを除去
                 for i = #Library.NotificationHistory, 1, -1 do
                     if Library.NotificationHistory[i].Category == activeTab then
                         table.remove(Library.NotificationHistory, i)
