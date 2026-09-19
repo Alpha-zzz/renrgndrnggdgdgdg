@@ -199,6 +199,15 @@ local Library = {
     --// Notification History (built-in) \\--
     NotificationHistory = {},
     NotificationHistoryLimit = 30,
+    NotificationIdCounter = 0,
+    NotificationCategories = {
+        ["General"] = { Name = "General", Limit = 30 }
+    },
+    NotificationHistoryByCategory = {
+        ["General"] = {}
+    },
+    NotificationHistoryCurrentCategory = "All",
+    NotificationCategoryTabs = nil,
     NotificationHistoryKeybind = Enum.KeyCode.RightAlt,
     NotificationHistoryFrame = nil,
     NotificationHistoryContainer = nil,
@@ -6088,6 +6097,152 @@ function Library:SetNotifySide(Side: string)
         NotificationArea.Position = UDim2.new(1, -6, 0, 6)
         NotificationList.HorizontalAlignment = Enum.HorizontalAlignment.Right
     end
+function Library:RegisterNotificationCategory(CategoryName, Limit)
+    Library.NotificationCategories[CategoryName] = { Name = CategoryName, Limit = Limit or 30 }
+    if not Library.NotificationHistoryByCategory[CategoryName] then
+        Library.NotificationHistoryByCategory[CategoryName] = {}
+    end
+    if Library.UpdateNotificationHistoryTabs then
+        Library:UpdateNotificationHistoryTabs()
+    end
+end
+
+function Library:UpdateNotificationHistoryUI()
+    if not Library.NotificationHistoryContainer then return end
+
+    -- Clear existing items
+    for _, child in ipairs(Library.NotificationHistoryContainer:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+
+    -- Gather entries
+    local entriesToDisplay = {}
+    if Library.NotificationHistoryCurrentCategory == "All" then
+        for _, categoryEntries in pairs(Library.NotificationHistoryByCategory) do
+            for _, entry in ipairs(categoryEntries) do
+                table.insert(entriesToDisplay, entry)
+            end
+        end
+        -- Sort by Id descending (newest first)
+        table.sort(entriesToDisplay, function(a, b)
+            return a.Id > b.Id
+        end)
+    else
+        local categoryEntries = Library.NotificationHistoryByCategory[Library.NotificationHistoryCurrentCategory]
+        if categoryEntries then
+            for _, entry in ipairs(categoryEntries) do
+                table.insert(entriesToDisplay, entry)
+            end
+            -- Already sorted newest first by table.insert(..., 1, ...) in Notify
+        end
+    end
+
+    -- Filter by search text
+    local Filter = Library.NotificationHistorySearchText or ""
+    
+    local LayoutOrderCounter = 1
+
+    for _, HistoryEntry in ipairs(entriesToDisplay) do
+        local MatchContent = ((HistoryEntry.Title or "") .. " " .. (HistoryEntry.Description or "")):lower()
+        if Filter == "" or MatchContent:match(Filter) then
+            local HistoryFrame = New("Frame", {
+                BackgroundColor3 = "MainColor",
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Size = UDim2.new(1, 0, 0, 0),
+                LayoutOrder = LayoutOrderCounter,
+                Parent = Library.NotificationHistoryContainer,
+            })
+            LayoutOrderCounter = LayoutOrderCounter + 1
+            
+            table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
+            New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
+            New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
+            New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
+
+            local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
+            
+            local TitleLbl = New("TextLabel", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -40, 1, 0),
+                Text = HistoryEntry.Title,
+                TextColor3 = HistoryEntry.Color,
+                TextSize = 14,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = TopBar,
+            })
+            if not Library.NotificationTypeColors[HistoryEntry.Type] then
+                Library.Registry[TitleLbl] = { TextColor3 = "AccentColor" }
+            end
+            
+            New("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(1, -40, 0, 0),
+                Size = UDim2.new(0, 40, 1, 0),
+                Text = HistoryEntry.Time,
+                TextColor3 = "FontColor",
+                TextTransparency = 0.5,
+                TextSize = 12,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                Parent = TopBar,
+            })
+
+            New("TextLabel", {
+                Name = "Content",
+                BackgroundTransparency = 1,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Size = UDim2.new(1, 0, 0, 0),
+                Text = HistoryEntry.Description,
+                TextColor3 = "FontColor",
+                TextSize = 13,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = HistoryFrame,
+            })
+
+            local BottomBar = New("Frame", {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 14),
+                Parent = HistoryFrame
+            })
+            
+            local CopyBtn = New("TextButton", {
+                BackgroundTransparency = 1,
+                AnchorPoint = Vector2.new(1, 0),
+                Position = UDim2.new(1, 0, 0, 0),
+                Size = UDim2.fromOffset(50, 14),
+                Text = "Copy",
+                TextColor3 = "FontColor",
+                TextTransparency = 0.5,
+                TextSize = 11,
+                Font = Enum.Font.Gotham,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                Parent = BottomBar
+            })
+            local copyTimerId = 0
+            CopyBtn.MouseButton1Click:Connect(function()
+                if setclipboard then
+                    local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
+                    setclipboard(copyText)
+                    
+                    CopyBtn.Text = "Copied!"
+                    CopyBtn.TextColor3 = Library.Scheme.AccentColor or Color3.fromRGB(255, 255, 255)
+                    CopyBtn.TextTransparency = 0
+                    copyTimerId = copyTimerId + 1
+                    local currentId = copyTimerId
+                    task.delay(2, function()
+                        if copyTimerId == currentId then
+                            CopyBtn.Text = "Copy"
+                            CopyBtn.TextColor3 = Library.Scheme.FontColor or Color3.fromRGB(255, 255, 255)
+                            CopyBtn.TextTransparency = 0.5
+                        end
+                    end)
+                end
+            end)
+        end
+    end
 end
 
 function Library:Notify(...)
@@ -6123,17 +6278,31 @@ function Library:Notify(...)
         end
     end
 
+    local CategoryName = Data.Category or "General"
+    if not Library.NotificationCategories[CategoryName] then
+        Library.NotificationCategories[CategoryName] = { Name = CategoryName, Limit = 30 }
+        Library.NotificationHistoryByCategory[CategoryName] = {}
+        if Library.UpdateNotificationHistoryTabs then
+            Library:UpdateNotificationHistoryTabs()
+        end
+    end
+
+    Library.NotificationIdCounter = Library.NotificationIdCounter + 1
+
     -- Add to Notification History
     local HistoryEntry = {
+        Id = Library.NotificationIdCounter,
         Title = Data.Title or "Notification",
         Description = Data.Description,
         Type = Data.Type,
+        Category = CategoryName,
         Time = os.date("%H:%M"),
         Color = TypeColor or Library.Scheme.AccentColor
     }
-    table.insert(Library.NotificationHistory, 1, HistoryEntry)
-    if #Library.NotificationHistory > Library.NotificationHistoryLimit then
-        table.remove(Library.NotificationHistory, #Library.NotificationHistory)
+    
+    table.insert(Library.NotificationHistoryByCategory[CategoryName], 1, HistoryEntry)
+    if #Library.NotificationHistoryByCategory[CategoryName] > Library.NotificationCategories[CategoryName].Limit then
+        table.remove(Library.NotificationHistoryByCategory[CategoryName], #Library.NotificationHistoryByCategory[CategoryName])
     end
 
     -- Update Badge
@@ -6150,118 +6319,8 @@ function Library:Notify(...)
         end
     end
 
-    -- Build History UI element if container exists
-    if Library.NotificationHistoryContainer then
-        local HistoryFrame = New("Frame", {
-            BackgroundColor3 = "MainColor",
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, 0),
-            Parent = Library.NotificationHistoryContainer,
-        })
-        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = HistoryFrame }))
-        New("UIStroke", { Color = "OutlineColor", Parent = HistoryFrame })
-        New("UIPadding", { PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), Parent = HistoryFrame })
-        New("UIListLayout", { Padding = UDim.new(0, 4), Parent = HistoryFrame })
-
-        local TopBar = New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), Parent = HistoryFrame })
-        
-        local TitleLbl = New("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, -40, 1, 0),
-            Text = HistoryEntry.Title,
-            TextColor3 = HistoryEntry.Color,
-            TextSize = 14,
-            Font = Enum.Font.GothamBold,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = TopBar,
-        })
-        if not TypeColor then
-            Library.Registry[TitleLbl] = { TextColor3 = "AccentColor" }
-        end
-        
-        New("TextLabel", {
-            BackgroundTransparency = 1,
-            Position = UDim2.new(1, -40, 0, 0),
-            Size = UDim2.new(0, 40, 1, 0),
-            Text = HistoryEntry.Time,
-            TextColor3 = "FontColor",
-            TextTransparency = 0.5,
-            TextSize = 12,
-            TextXAlignment = Enum.TextXAlignment.Right,
-            Parent = TopBar,
-        })
-
-        New("TextLabel", {
-            Name = "Content",
-            BackgroundTransparency = 1,
-            AutomaticSize = Enum.AutomaticSize.Y,
-            Size = UDim2.new(1, 0, 0, 0),
-            Text = HistoryEntry.Description,
-            TextColor3 = "FontColor",
-            TextSize = 13,
-            TextWrapped = true,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = HistoryFrame,
-        })
-
-        -- Copy Button Container
-        local BottomBar = New("Frame", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 14),
-            Parent = HistoryFrame
-        })
-        local CopyBtn = New("TextButton", {
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(1, 0),
-            Position = UDim2.new(1, 0, 0, 0),
-            Size = UDim2.fromOffset(50, 14),
-            Text = "Copy",
-            TextColor3 = "FontColor",
-            TextTransparency = 0.5,
-            TextSize = 11,
-            Font = Enum.Font.Gotham,
-            TextXAlignment = Enum.TextXAlignment.Right,
-            Parent = BottomBar
-        })
-        local copyTimerId = 0
-        CopyBtn.MouseButton1Click:Connect(function()
-            if setclipboard then
-                local copyText = (HistoryEntry.Title and (HistoryEntry.Title .. "\n") or "") .. HistoryEntry.Description
-                setclipboard(copyText)
-                
-                CopyBtn.Text = "Copied!"
-                CopyBtn.TextColor3 = Library.Scheme.AccentColor or Color3.fromRGB(255, 255, 255)
-                CopyBtn.TextTransparency = 0
-                copyTimerId = copyTimerId + 1
-                local currentId = copyTimerId
-                task.delay(2, function()
-                    if copyTimerId == currentId then
-                        CopyBtn.Text = "Copy"
-                        CopyBtn.TextColor3 = Library.Scheme.FontColor or Color3.fromRGB(255, 255, 255)
-                        CopyBtn.TextTransparency = 0.5
-                    end
-                end)
-            end
-        end)
-
-        -- Sort logically
-        for i, entry in ipairs(Library.NotificationHistory) do
-            local child = Library.NotificationHistoryContainer:GetChildren()[i + 1] -- Skip layout/searchbox
-            if child and child:IsA("Frame") then
-                child.LayoutOrder = i
-            end
-        end
-
-        -- Delete old ones visually
-        local Count = 0
-        for _, Child in ipairs(Library.NotificationHistoryContainer:GetChildren()) do
-            if Child:IsA("Frame") and Child.Name ~= "Frame" then -- "Frame" is SearchBox container
-                Count += 1
-                if Count > Library.NotificationHistoryLimit then
-                    Child:Destroy()
-                end
-            end
-        end
+    if Library.UpdateNotificationHistoryUI then
+        Library:UpdateNotificationHistoryUI()
     end
 
 
@@ -9128,10 +9187,26 @@ function Library:CreateWindow(WindowInfo)
         })
         table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = ClearBtn }))
         New("UIStroke", { Color = "OutlineColor", Parent = ClearBtn })
+        
+        -- Add Category Tabs Container
+        local CategoryTabsContainer = New("ScrollingFrame", {
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, 67),
+            Size = UDim2.new(1, 0, 0, 24),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.X,
+            ScrollBarThickness = 0,
+            ScrollingDirection = Enum.ScrollingDirection.X,
+            Parent = Frame,
+        })
+        New("UIListLayout", { Padding = UDim.new(0, 4), FillDirection = Enum.FillDirection.Horizontal, Parent = CategoryTabsContainer })
+        New("UIPadding", { PaddingBottom = UDim.new(0, 2), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 2), Parent = CategoryTabsContainer })
+        Library.NotificationCategoryTabs = CategoryTabsContainer
+
         local Container = New("ScrollingFrame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(0, 67), -- Moved down to accommodate search box
-            Size = UDim2.new(1, 0, 1, -67),
+            Position = UDim2.fromOffset(0, 93), -- Moved down to accommodate category tabs
+            Size = UDim2.new(1, 0, 1, -93),
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollBarThickness = 2,
@@ -9141,19 +9216,23 @@ function Library:CreateWindow(WindowInfo)
         New("UIPadding", { PaddingBottom = UDim.new(0, 7), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7), PaddingTop = UDim.new(0, 0), Parent = Container })
         
         ClearBtn.MouseButton1Click:Connect(function()
-            -- 履歴UIをすべて削除
-            for _, Child in Container:GetChildren() do
-                if Child:IsA("Frame") then
-                    Child:Destroy()
+            if Library.NotificationHistoryCurrentCategory == "All" then
+                -- Clear all categories
+                for catName, _ in pairs(Library.NotificationHistoryByCategory) do
+                    Library.NotificationHistoryByCategory[catName] = {}
                 end
+            else
+                -- Clear only current category
+                Library.NotificationHistoryByCategory[Library.NotificationHistoryCurrentCategory] = {}
             end
-            -- 履歴のデータを空にする
-            table.clear(Library.NotificationHistory)
             
-            -- 未読バッジなどをリセット
             Library.NotificationUnreadCount = 0
             if Library.NotificationBadge then
                 Library.NotificationBadge.Visible = false
+            end
+            
+            if Library.UpdateNotificationHistoryUI then
+                Library:UpdateNotificationHistoryUI()
             end
         end)
         
@@ -9161,21 +9240,49 @@ function Library:CreateWindow(WindowInfo)
         Library.NotificationHistoryContainer = Container
 
         HistorySearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-            local Filter = HistorySearchBox.Text:lower()
-            Library.NotificationHistorySearchText = Filter
-            for _, Child in Container:GetChildren() do
-                if Child:IsA("Frame") and Child ~= HistorySearchContainer then
-                    local ContentLabel = Child:FindFirstChild("Content")
-                    if ContentLabel and ContentLabel:IsA("TextLabel") then
-                        if Filter == "" or ContentLabel.Text:lower():match(Filter) then
-                            Child.Visible = true
-                        else
-                            Child.Visible = false
-                        end
-                    end
-                end
+            Library.NotificationHistorySearchText = HistorySearchBox.Text:lower()
+            if Library.UpdateNotificationHistoryUI then
+                Library:UpdateNotificationHistoryUI()
             end
         end)
+        
+        function Library:UpdateNotificationHistoryTabs()
+            if not Library.NotificationCategoryTabs then return end
+            
+            for _, child in ipairs(Library.NotificationCategoryTabs:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
+            end
+            
+            local cats = { "All" }
+            for catName, _ in pairs(Library.NotificationCategories) do
+                table.insert(cats, catName)
+            end
+            
+            for _, catName in ipairs(cats) do
+                local TabBtn = New("TextButton", {
+                    BackgroundColor3 = Library.NotificationHistoryCurrentCategory == catName and "AccentColor" or "MainColor",
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    Size = UDim2.fromOffset(0, 20),
+                    Text = " " .. catName .. " ",
+                    TextColor3 = Library.NotificationHistoryCurrentCategory == catName and Color3.new(1,1,1) or "FontColor",
+                    TextSize = 12,
+                    Font = Enum.Font.Gotham,
+                    Parent = Library.NotificationCategoryTabs,
+                })
+                table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = TabBtn }))
+                New("UIStroke", { Color = "OutlineColor", Parent = TabBtn })
+                
+                TabBtn.MouseButton1Click:Connect(function()
+                    Library.NotificationHistoryCurrentCategory = catName
+                    Library:UpdateNotificationHistoryTabs()
+                    Library:UpdateNotificationHistoryUI()
+                end)
+            end
+        end
+        
+        Library:UpdateNotificationHistoryTabs()
 
         Library.NotificationHistorySearchBox = HistorySearchBox
     end
