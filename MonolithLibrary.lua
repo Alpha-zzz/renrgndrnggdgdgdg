@@ -379,8 +379,8 @@ local Templates = {
         CompactWidthActivation = 128,
 
         --// Search \\--
-        SearchKeybind = Enum.KeyCode.F,
-        DisableSearchKeybind = false,
+        SearchKeybind = Enum.KeyCode.Unknown,
+        DisableSearchKeybind = true,
         FuzzySearch = true,
         SearchValues = true,
 
