@@ -6878,6 +6878,7 @@ function Library:CreateWindow(WindowInfo)
             Position = WindowInfo.Position,
             Size = WindowInfo.Size,
             Visible = false,
+            ClipsDescendants = true,
             Parent = ScreenGui,
         })
         table.insert(
@@ -7319,6 +7320,7 @@ function Library:CreateWindow(WindowInfo)
             Name = "Container",
             Position = UDim2.new(1, 0, 0, 49),
             Size = UDim2.new(1, -InitialLeftWidth - 1, 1, -70),
+            ClipsDescendants = true,
             Parent = MainFrame,
         })
         New("UIPadding", {
@@ -7556,6 +7558,7 @@ function Library:CreateWindow(WindowInfo)
                 ScrollBarImageColor3 = "FontColor",
                 ScrollBarThickness = 6,
                 Size = UDim2.new(0.5, -3, 1, 0),
+                ClipsDescendants = true,
                 Parent = TabContainer,
             })
             New("UIListLayout", {
@@ -7592,6 +7595,7 @@ function Library:CreateWindow(WindowInfo)
                 ScrollBarImageColor3 = "FontColor",
                 ScrollBarThickness = 6,
                 Size = UDim2.new(0.5, -3, 1, 0),
+                ClipsDescendants = true,
                 Parent = TabContainer,
             })
             New("UIListLayout", {
