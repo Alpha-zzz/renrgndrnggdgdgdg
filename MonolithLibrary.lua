@@ -5012,7 +5012,7 @@ do
             local Count = 0
             for _, Value in Values do
                 local FormattedValue = tostring(Info.FormatListValue and Info.FormatListValue(Value) or Value)
-                if SearchBox and not FormattedValue:lower():match(SearchBox.Text:lower()) then
+                if SearchBox and not FormattedValue:lower():find(SearchBox.Text:lower(), 1, true) then
                     continue
                 end
 
@@ -7312,15 +7312,15 @@ function Library:CreateWindow(WindowInfo)
         })
 
         --// Container \\--
-        Container = New("Frame", {
+        Container = New("CanvasGroup", {
             AnchorPoint = Vector2.new(1, 0),
             BackgroundColor3 = function()
                 return Library:GetBetterColor(Library.Scheme.BackgroundColor, 1)
             end,
             Name = "Container",
+            BorderSizePixel = 0,
             Position = UDim2.new(1, 0, 0, 49),
             Size = UDim2.new(1, -InitialLeftWidth - 1, 1, -70),
-            ClipsDescendants = true,
             Parent = MainFrame,
         })
         New("UIPadding", {
