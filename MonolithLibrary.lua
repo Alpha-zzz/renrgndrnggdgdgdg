@@ -5127,84 +5127,77 @@ do
         function Dropdown:SetValues(Values)
             local currentVal = Dropdown.Value
 
-            -- 現在の選択状態を「永続的な値」として記録しておく
-            Dropdown.PersistentValues = Dropdown.PersistentValues or {}
-            Dropdown.PersistentValue = Dropdown.PersistentValue or nil
-
+            -- [完全修正] 現在選択している値を絶対に失わず、相手が抜けてもリストに強制保持する
             if Info.Multi then
+                local updatedVal = {}
                 if type(currentVal) == "table" then
                     for k, v in pairs(currentVal) do
-                        Dropdown.PersistentValues[k] = v
+                        if v then
+                            local foundNew = nil
+                            for _, val in ipairs(Values) do
+                                if val == k then
+                                    foundNew = val
+                                    break
+                                elseif Info.SpecialType == "Player" and typeof(val) == "Instance" and typeof(k) == "Instance" and val.Name == k.Name then
+                                    foundNew = val
+                                    break
+                                elseif Info.SpecialType == "Player" and type(val) == "string" and type(k) == "string" and val == k then
+                                    foundNew = val
+                                    break
+                                end
+                            end
+                            if foundNew ~= nil then
+                                -- 相手が入り直してきた：新しいプレイヤーデータにすり替える
+                                updatedVal[foundNew] = true
+                            else
+                                -- 相手が抜けている：選択を維持するためにリストへ強制追加する
+                                table.insert(Values, k)
+                                updatedVal[k] = true
+                            end
+                        end
                     end
                 end
+                Dropdown.Value = updatedVal
+                currentVal = updatedVal
             else
                 if currentVal ~= nil then
-                    Dropdown.PersistentValue = currentVal
+                    local foundNew = nil
+                    for _, val in ipairs(Values) do
+                        if val == currentVal then
+                            foundNew = val
+                            break
+                        elseif Info.SpecialType == "Player" and typeof(val) == "Instance" and typeof(currentVal) == "Instance" and val.Name == currentVal.Name then
+                            foundNew = val
+                            break
+                        elseif Info.SpecialType == "Player" and type(val) == "string" and type(currentVal) == "string" and val == currentVal then
+                            foundNew = val
+                            break
+                        end
+                    end
+
+                    if foundNew ~= nil then
+                        -- 相手が入り直してきた：新しいプレイヤーデータにすり替える
+                        Dropdown.Value = foundNew
+                        currentVal = foundNew
+                    else
+                        -- 相手が抜けている：選択を維持するためにリストへ強制追加する
+                        table.insert(Values, currentVal)
+                    end
                 end
             end
 
+            -- 新しいリストでUIを構築（抜けた相手もリストに表示され続ける）
             Dropdown.Values = Values
             Dropdown:BuildDropdownList()
 
-            -- リストを更新後、永続的な値から復元を試みる
+            -- [絶対にリセットさせない] ここで勝手に nil に戻るバグを完全に排除
             if Info.Multi then
-                local newVal = {}
-                for k, v in pairs(Dropdown.PersistentValues) do
-                    local foundVal = nil
-                    for _, val in ipairs(Values) do
-                        if val == k then
-                            foundVal = val
-                            break
-                        elseif Info.SpecialType == "Player" and typeof(val) == "Instance" and typeof(k) == "Instance" and val.Name == k.Name then
-                            foundVal = val
-                            break
-                        elseif Info.SpecialType == "Player" and type(val) == "string" and type(k) == "string" and val == k then
-                            foundVal = val
-                            break
-                        end
-                    end
-                    if foundVal then newVal[foundVal] = v end
-                end
-                Dropdown:SetValue(newVal)
+                Dropdown:SetValue(currentVal)
             else
-                local pVal = Dropdown.PersistentValue
-                local foundVal = nil
-                if pVal ~= nil then
-                    for _, val in ipairs(Values) do
-                        if val == pVal then
-                            foundVal = val
-                            break
-                        elseif Info.SpecialType == "Player" and typeof(val) == "Instance" and typeof(pVal) == "Instance" and val.Name == pVal.Name then
-                            foundVal = val
-                            break
-                        elseif Info.SpecialType == "Player" and type(val) == "string" and type(pVal) == "string" and val == pVal then
-                            foundVal = val
-                            break
-                        end
-                    end
-                end
-
-                if foundVal ~= nil then
-                    -- リストに戻ってきた → 正常にSetValueで復元
-                    Dropdown:SetValue(foundVal)
-                elseif pVal ~= nil then
-                    -- リストにいない（退出中）→ Value・Callbackは変えず表示だけ保持
-                    -- Dropdown.Value は現状維持（nilにしない）
-                    local displayName
-                    if typeof(pVal) == "Instance" then
-                        displayName = pVal.Name
-                    else
-                        displayName = tostring(pVal)
-                    end
-                    if Info.FormatDisplayValue then
-                        displayName = tostring(Info.FormatDisplayValue(displayName))
-                    end
-                    if #displayName > 25 then
-                        displayName = displayName:sub(1, 22) .. "..."
-                    end
-                    Display.Text = displayName
+                if currentVal ~= nil then
+                    -- 手動で変更しない限り、現在のターゲットを再度送信して維持する
+                    Dropdown:SetValue(currentVal)
                 else
-                    -- 何も選ばれていない → SetValue(nil)で通常クリア
                     Dropdown:SetValue(nil)
                 end
             end
