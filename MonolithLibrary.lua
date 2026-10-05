@@ -718,7 +718,7 @@ local function TryFuzzyMatch(Text, Search)
     if Library.FuzzySearch then
         return FuzzyScore(Search, Text) >= 0
     else
-        return Text:match(Search) ~= nil
+        return Text:find(Search, 1, true) ~= nil
     end
 end
 
@@ -1965,6 +1965,16 @@ function Library:AddContextMenu(
                 )
             end
         end)
+
+        -- [完全修正] ドロップダウンを展開したままスクロールしたら、自動で閉じる
+        Table.ScrollSignals = {}
+        local ancestor = Holder:FindFirstAncestorOfClass("ScrollingFrame")
+        while ancestor do
+            table.insert(Table.ScrollSignals, ancestor:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+                Table:Close()
+            end))
+            ancestor = ancestor.Parent and ancestor.Parent:FindFirstAncestorOfClass("ScrollingFrame") or nil
+        end
     end
 
     function Table:Close()
@@ -1977,6 +1987,15 @@ function Library:AddContextMenu(
             Table.Signal:Disconnect()
             Table.Signal = nil
         end
+
+        -- [完全修正] スクロールの監視を解除する
+        if Table.ScrollSignals then
+            for _, sig in ipairs(Table.ScrollSignals) do
+                if sig.Connected then sig:Disconnect() end
+            end
+            Table.ScrollSignals = nil
+        end
+
         Table.Active = false
         CurrentMenu = nil
         if typeof(ActiveCallback) == "function" then
@@ -6255,7 +6274,7 @@ function Library:_SwitchHistoryTab(CategoryName)
                 -- 全体表示: 検索フィルターのみ適用
                 local ContentLabel = Child:FindFirstChild("Content")
                 if ContentLabel then
-                    Child.Visible = SearchFilter == "" or ContentLabel.Text:lower():match(SearchFilter) ~= nil
+                    Child.Visible = SearchFilter == "" or ContentLabel.Text:lower():find(SearchFilter, 1, true) ~= nil
                 else
                     Child.Visible = true
                 end
@@ -6265,7 +6284,7 @@ function Library:_SwitchHistoryTab(CategoryName)
                 local show = (catTag == CategoryName)
                 if show and SearchFilter ~= "" then
                     local ContentLabel = Child:FindFirstChild("Content")
-                    show = ContentLabel and ContentLabel.Text:lower():match(SearchFilter) ~= nil
+                    show = ContentLabel and ContentLabel.Text:lower():find(SearchFilter, 1, true) ~= nil
                 end
                 Child.Visible = show
             end
@@ -6498,7 +6517,7 @@ function Library:Notify(...)
         local SearchFilter = Library.NotificationHistorySearchText
         if SearchFilter ~= "" then
             local ContentLabel = HistoryFrame:FindFirstChild("Content")
-            if ContentLabel and not ContentLabel.Text:lower():match(SearchFilter) then
+            if ContentLabel and not ContentLabel.Text:lower():find(SearchFilter, 1, true) then
                 HistoryFrame.Visible = false
             end
         end
@@ -9496,7 +9515,7 @@ function Library:CreateWindow(WindowInfo)
                 if Child:IsA("Frame") and Child ~= HistorySearchContainer then
                     local ContentLabel = Child:FindFirstChild("Content")
                     if ContentLabel and ContentLabel:IsA("TextLabel") then
-                        if Filter == "" or ContentLabel.Text:lower():match(Filter) then
+                        if Filter == "" or ContentLabel.Text:lower():find(Filter, 1, true) then
                             Child.Visible = true
                         else
                             Child.Visible = false
