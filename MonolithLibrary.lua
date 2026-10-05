@@ -5125,8 +5125,24 @@ do
         end
 
         function Dropdown:SetValues(Values)
+            local currentVal = Dropdown.Value
             Dropdown.Values = Values
             Dropdown:BuildDropdownList()
+            if Info.Multi then
+                local newVal = {}
+                if type(currentVal) == "table" then
+                    for k, v in pairs(currentVal) do
+                        if table.find(Values, k) then newVal[k] = v end
+                    end
+                end
+                Dropdown:SetValue(newVal)
+            else
+                if currentVal and table.find(Values, currentVal) then
+                    Dropdown:SetValue(currentVal)
+                else
+                    Dropdown:SetValue(nil)
+                end
+            end
         end
 
         function Dropdown:AddValues(Values)
