@@ -4816,6 +4816,26 @@ do
         if Info.SpecialType == "Player" then
             Info.Values = GetPlayers(Info.ExcludeLocalPlayer)
             Info.AllowNull = true
+            
+            -- ▼▼ 追加：プレイヤー用の表示フォーマットをライブラリ側で自動設定する ▼▼
+            local function playerFormatter(v)
+                -- インスタンス、または文字列(ユーザー名)からプレイヤーのデータを特定
+                local plrObj = typeof(v) == "Instance" and v or game:GetService("Players"):FindFirstChild(tostring(v))
+                if plrObj and plrObj:IsA("Player") then
+                    return plrObj.DisplayName .. " (" .. plrObj.Name .. ")"
+                end
+                return tostring(v)
+            end
+            
+            -- スクリプト側で指定されていなければ、自動でフォーマットを適用する
+            if not Info.FormatListValue then
+                Info.FormatListValue = playerFormatter
+            end
+            if not Info.FormatDisplayValue then
+                Info.FormatDisplayValue = playerFormatter
+            end
+            -- ▲▲ 追加ここまで ▲▲
+            
         elseif Info.SpecialType == "Team" then
             Info.Values = GetTeams()
             Info.AllowNull = true
