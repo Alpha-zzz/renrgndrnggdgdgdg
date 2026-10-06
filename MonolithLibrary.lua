@@ -5177,21 +5177,26 @@ do
                                 if val == k then
                                     foundNew = val
                                     break
-                                elseif Info.SpecialType == "Player" and typeof(val) == "Instance" and typeof(k) == "Instance" and val.Name == k.Name then
-                                    foundNew = val
-                                    break
-                                elseif Info.SpecialType == "Player" and type(val) == "string" and type(k) == "string" and val == k then
-                                    foundNew = val
-                                    break
+                                elseif Info.SpecialType == "Player" then
+                                    local valName = typeof(val) == "Instance" and val.Name or tostring(val)
+                                    local kName = typeof(k) == "Instance" and k.Name or tostring(k)
+                                    if valName == kName then
+                                        foundNew = val
+                                        break
+                                    end
                                 end
                             end
                             if foundNew ~= nil then
                                 -- 相手が入り直してきた：新しいプレイヤーデータにすり替える
                                 updatedVal[foundNew] = true
                             else
-                                -- 相手が抜けている：選択を維持するためにリストへ強制追加する
-                                table.insert(Values, k)
-                                updatedVal[k] = true
+                                -- 相手が抜けている：DisplayName (ID) の文字列に変換して強制追加する
+                                local savedStr = k
+                                if typeof(k) == "Instance" and k:IsA("Player") then
+                                    savedStr = k.DisplayName .. " (" .. k.Name .. ")"
+                                end
+                                table.insert(Values, savedStr)
+                                updatedVal[savedStr] = true
                             end
                         end
                     end
@@ -5205,12 +5210,13 @@ do
                         if val == currentVal then
                             foundNew = val
                             break
-                        elseif Info.SpecialType == "Player" and typeof(val) == "Instance" and typeof(currentVal) == "Instance" and val.Name == currentVal.Name then
-                            foundNew = val
-                            break
-                        elseif Info.SpecialType == "Player" and type(val) == "string" and type(currentVal) == "string" and val == currentVal then
-                            foundNew = val
-                            break
+                        elseif Info.SpecialType == "Player" then
+                            local valName = typeof(val) == "Instance" and val.Name or tostring(val)
+                            local curName = typeof(currentVal) == "Instance" and currentVal.Name or tostring(currentVal)
+                            if valName == curName then
+                                foundNew = val
+                                break
+                            end
                         end
                     end
 
@@ -5219,8 +5225,14 @@ do
                         Dropdown.Value = foundNew
                         currentVal = foundNew
                     else
-                        -- 相手が抜けている：選択を維持するためにリストへ強制追加する
-                        table.insert(Values, currentVal)
+                        -- 相手が抜けている：DisplayName (ID) の文字列に変換して強制追加する
+                        local savedStr = currentVal
+                        if typeof(currentVal) == "Instance" and currentVal:IsA("Player") then
+                            savedStr = currentVal.DisplayName .. " (" .. currentVal.Name .. ")"
+                        end
+                        table.insert(Values, savedStr)
+                        Dropdown.Value = savedStr
+                        currentVal = savedStr
                     end
                 end
             end
