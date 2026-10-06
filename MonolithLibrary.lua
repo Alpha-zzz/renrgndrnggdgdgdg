@@ -7095,7 +7095,7 @@ function Library:CreateWindow(WindowInfo)
 
         New("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
-            HorizontalAlignment = Enum.HorizontalAlignment.Left,
+            HorizontalAlignment = Enum.HorizontalAlignment.Right, -- ★ 右寄せに変更
             VerticalAlignment = Enum.VerticalAlignment.Center,
             Padding = UDim.new(0, 8),
             Parent = RightWrapper,
@@ -7153,7 +7153,7 @@ function Library:CreateWindow(WindowInfo)
         SearchBox = New("TextBox", {
             BackgroundColor3 = "MainColor",
             PlaceholderText = "Search",
-            Size = UDim2.new(0, 150, 1, 0), -- ★ 横幅を150pxに小さく固定
+            Size = UDim2.new(0, 200, 1, 0), -- ★ 横幅を200pxに固定
             TextScaled = true,
             Visible = not (WindowInfo.DisableSearch or false),
             Parent = RightWrapper,
