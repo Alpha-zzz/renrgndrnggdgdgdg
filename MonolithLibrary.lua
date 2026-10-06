@@ -6924,7 +6924,7 @@ function Library:CreateWindow(WindowInfo)
     Library.ToggleKeybind = WindowInfo.ToggleKeybind
     Library.GlobalSearch = WindowInfo.GlobalSearch
 
-    local IsDefaultSearchbarSize = WindowInfo.SearchbarSize == UDim2.fromScale(1, 1)
+    local IsDefaultSearchbarSize = false -- ★ タブ切り替え時にデカく戻るのを完全に無効化
     local MainFrame
     local DividerLine
     local TitleHolder
@@ -7153,13 +7153,13 @@ function Library:CreateWindow(WindowInfo)
         SearchBox = New("TextBox", {
             BackgroundColor3 = "MainColor",
             PlaceholderText = "Search",
-            Size = WindowInfo.SearchbarSize,
+            Size = UDim2.new(0, 150, 1, 0), -- ★ 横幅を150pxに小さく固定
             TextScaled = true,
             Visible = not (WindowInfo.DisableSearch or false),
             Parent = RightWrapper,
         })
         New("UIFlexItem", {
-            FlexMode = Enum.UIFlexMode.Shrink,
+            FlexMode = Enum.UIFlexMode.None, -- ★ 勝手に伸び縮みするのを防止
             Parent = SearchBox,
         })
         table.insert(
