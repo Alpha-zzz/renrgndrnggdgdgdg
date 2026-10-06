@@ -5164,28 +5164,46 @@ do
         end
 
         function Dropdown:SetValues(Values)
+            -- [完全修正2] 配列の「汚染バグ」を防ぐため、リストを一度複製する
+            -- これをしないと、別のドロップダウンに退出したプレイヤーの名前が混ざってしまいます
+            local clonedValues = {}
+            for _, v in ipairs(Values) do
+                table.insert(clonedValues, v)
+            end
+            Values = clonedValues
+
             local currentVal = Dropdown.Value
 
-            -- [完全修正] 現在選択している値を絶対に失わず、相手が抜けてもリストに強制保持する
+            -- [完全修正1] プレイヤー名だけを確実に抽出するヘルパー関数
+            local function extractName(data)
+                if typeof(data) == "Instance" and data:IsA("Player") then
+                    return data.Name
+                end
+                local str = tostring(data)
+                return str:match("%(([^%)]+)%)%s*$") or str:split(" ")[1] or str
+            end
+
+            -- マルチ選択時の処理
             if Info.Multi then
                 local updatedVal = {}
                 if type(currentVal) == "table" then
                     for k, v in pairs(currentVal) do
                         if v then
                             local foundNew = nil
+                            local curNameStr = extractName(k)
+
                             for _, val in ipairs(Values) do
                                 if val == k then
                                     foundNew = val
                                     break
                                 elseif Info.SpecialType == "Player" then
-                                    local valName = typeof(val) == "Instance" and val.Name or tostring(val)
-                                    local kName = typeof(k) == "Instance" and k.Name or tostring(k)
-                                    if valName == kName then
+                                    if extractName(val) == curNameStr then
                                         foundNew = val
                                         break
                                     end
                                 end
                             end
+
                             if foundNew ~= nil then
                                 -- 相手が入り直してきた：新しいプレイヤーデータにすり替える
                                 updatedVal[foundNew] = true
@@ -5195,7 +5213,14 @@ do
                                 if typeof(k) == "Instance" and k:IsA("Player") then
                                     savedStr = k.DisplayName .. " (" .. k.Name .. ")"
                                 end
-                                table.insert(Values, savedStr)
+                                -- リスト内で重複しないように追加
+                                local alreadyExists = false
+                                for _, existingVal in ipairs(Values) do
+                                    if existingVal == savedStr then alreadyExists = true break end
+                                end
+                                if not alreadyExists then
+                                    table.insert(Values, savedStr)
+                                end
                                 updatedVal[savedStr] = true
                             end
                         end
@@ -5204,16 +5229,17 @@ do
                 Dropdown.Value = updatedVal
                 currentVal = updatedVal
             else
+                -- 単一選択時の処理
                 if currentVal ~= nil then
                     local foundNew = nil
+                    local curNameStr = extractName(currentVal)
+
                     for _, val in ipairs(Values) do
                         if val == currentVal then
                             foundNew = val
                             break
                         elseif Info.SpecialType == "Player" then
-                            local valName = typeof(val) == "Instance" and val.Name or tostring(val)
-                            local curName = typeof(currentVal) == "Instance" and currentVal.Name or tostring(currentVal)
-                            if valName == curName then
+                            if extractName(val) == curNameStr then
                                 foundNew = val
                                 break
                             end
@@ -5230,7 +5256,14 @@ do
                         if typeof(currentVal) == "Instance" and currentVal:IsA("Player") then
                             savedStr = currentVal.DisplayName .. " (" .. currentVal.Name .. ")"
                         end
-                        table.insert(Values, savedStr)
+                        -- リスト内で重複しないように追加
+                        local alreadyExists = false
+                        for _, existingVal in ipairs(Values) do
+                            if existingVal == savedStr then alreadyExists = true break end
+                        end
+                        if not alreadyExists then
+                            table.insert(Values, savedStr)
+                        end
                         Dropdown.Value = savedStr
                         currentVal = savedStr
                     end
@@ -5241,12 +5274,11 @@ do
             Dropdown.Values = Values
             Dropdown:BuildDropdownList()
 
-            -- [絶対にリセットさせない] ここで勝手に nil に戻るバグを完全に排除
+            -- [絶対にリセットさせない] 
             if Info.Multi then
                 Dropdown:SetValue(currentVal)
             else
                 if currentVal ~= nil then
-                    -- 手動で変更しない限り、現在のターゲットを再度送信して維持する
                     Dropdown:SetValue(currentVal)
                 else
                     Dropdown:SetValue(nil)
@@ -5339,7 +5371,7 @@ do
                     table.insert(Defaults, Index)
                 end
             end
-        elseif Dropdown.Values[Info.Default] ~= nil then
+        elseif Info.Default ~= nil and Dropdown.Values[Info.Default] ~= nil then
             table.insert(Defaults, Info.Default)
         end
 
