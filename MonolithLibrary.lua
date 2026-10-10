@@ -650,17 +650,17 @@ local function Round(Value, Rounding)
 end
 
 local function GetPlayers(ExcludeLocalPlayer: boolean?)
-    local PlayerList = Players:GetPlayers()
-
-    if ExcludeLocalPlayer then
-        local Idx = table.find(PlayerList, LocalPlayer)
-        if Idx then
-            table.remove(PlayerList, Idx)
+    local PlayerList = {}
+    
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if ExcludeLocalPlayer and Player == LocalPlayer then
+            continue
         end
+        table.insert(PlayerList, Player.DisplayName .. " (" .. Player.Name .. ")")
     end
 
-    table.sort(PlayerList, function(Player1, Player2)
-        return Player1.Name:lower() < Player2.Name:lower()
+    table.sort(PlayerList, function(a, b)
+        return a:lower() < b:lower()
     end)
 
     return PlayerList
@@ -3267,9 +3267,10 @@ do
                 return
             end
 
-            local Color = Color3.fromHSV(HSV[1], HSV[2], HSV[3])
+            ColorPicker.Hue = HSV[1] or ColorPicker.Hue
+            ColorPicker.Sat = HSV[2] or ColorPicker.Sat
+            ColorPicker.Vib = HSV[3] or ColorPicker.Vib
             ColorPicker.Transparency = Info.Transparency and Transparency or 0
-            ColorPicker:SetHSVFromRGB(Color)
             ColorPicker:Update()
         end
 
@@ -5063,7 +5064,7 @@ do
                 local Button = New("TextButton", {
                     BackgroundColor3 = "MainColor",
                     BackgroundTransparency = 1,
-                    LayoutOrder = IsDisabled and 1 or 0,
+                    LayoutOrder = IsDisabled and (Count + 1000) or Count,
                     Size = UDim2.new(1, 0, 0, 21),
                     Text = FormattedValue,
                     TextSize = 14,
@@ -5205,9 +5206,9 @@ do
                             end
 
                             if foundNew ~= nil then
-                                -- 相手が入り直してきた：新しいプレイヤーデータにすり替える
+                                -- 相手が入り直してきた：新しいデータにすり替える
                                 updatedVal[foundNew] = true
-                            else
+                            elseif Info.SpecialType == "Player" then
                                 -- 相手が抜けている：DisplayName (ID) の文字列に変換して強制追加する
                                 local savedStr = k
                                 if typeof(k) == "Instance" and k:IsA("Player") then
@@ -5222,6 +5223,8 @@ do
                                     table.insert(Values, savedStr)
                                 end
                                 updatedVal[savedStr] = true
+                            else
+                                -- 通常のドロップダウンの場合、リストに無い値はそのまま消去する（汚染防止）
                             end
                         end
                     end
@@ -5247,10 +5250,10 @@ do
                     end
 
                     if foundNew ~= nil then
-                        -- 相手が入り直してきた：新しいプレイヤーデータにすり替える
+                        -- 新しいデータにすり替える
                         Dropdown.Value = foundNew
                         currentVal = foundNew
-                    else
+                    elseif Info.SpecialType == "Player" then
                         -- 相手が抜けている：DisplayName (ID) の文字列に変換して強制追加する
                         local savedStr = currentVal
                         if typeof(currentVal) == "Instance" and currentVal:IsA("Player") then
@@ -5266,6 +5269,10 @@ do
                         end
                         Dropdown.Value = savedStr
                         currentVal = savedStr
+                    else
+                        -- 通常のドロップダウンの場合、リストに無い値は選択解除する（リストを汚染させない）
+                        Dropdown.Value = nil
+                        currentVal = nil
                     end
                 end
             end
